@@ -7,6 +7,7 @@ using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
+using System.Windows.Shapes;
 using System.Windows.Threading;
 using WBImageViewer.Models;
 using WBImageViewer.Native;
@@ -22,6 +23,9 @@ using MessageBox = System.Windows.MessageBox;
 using MouseButtonEventArgs = System.Windows.Input.MouseButtonEventArgs;
 using MouseEventArgs = System.Windows.Input.MouseEventArgs;
 using Point = System.Windows.Point;
+using Path = System.Windows.Shapes.Path;
+using Brushes = System.Windows.Media.Brushes;
+using Size = System.Windows.Size;
 
 namespace WBImageViewer;
 
@@ -47,6 +51,27 @@ public partial class MainWindow : Window
     private Win32.POINT _moveCursorStart;
     private Win32.RECT _moveWindowStart;
     private Point _lastPanPosition;
+
+    // Annotation state.
+    private readonly List<AnnotationStroke> _annotations = new();
+    private AnnotationTool _annotationTool = AnnotationTool.Pointer;
+    private Color _annotationColor = Color.FromRgb(255, 82, 82);
+    private double _annotationSize = 3;
+    private double _eraserSize = 16;
+    private bool _annotating;
+    private List<Point> _draftPoints = new();
+    private Point _draftPointer;
+    private UIElement? _draftVisual;
+
+    // Compass state.
+    private readonly List<CompassSector> _compassSectors = BuildCompassSectors();
+    private readonly List<UIElement> _compassVisuals = new();
+    private readonly List<Path> _compassPaths = new();
+    private bool _compassOpen;
+    private Point _compassOrigin;
+    private Point _compassPointer;
+    private int _compassHover = -1;
+    private Line? _compassGuide;
 
     public MainWindow()
     {
@@ -175,6 +200,9 @@ public partial class MainWindow : Window
             _display = new WriteableBitmap(_pixelWidth, _pixelHeight, 96, 96, PixelFormats.Bgra32, null);
             _zoom = 1;
             _offsetX = _offsetY = 0;
+            _annotations.Clear();
+            AnnotationLayer.Children.Clear();
+            ClearDraftVisual();
 
             _adjustments = App.Settings.AutoOptimize
                 ? ImageAdjustments.SmartPreset()
@@ -184,7 +212,7 @@ public partial class MainWindow : Window
 
             ImageView.Source = _display;
             Hint.Visibility = Visibility.Collapsed;
-            Title = $"{AppInfo.Name} - {Path.GetFileName(path)}";
+            Title = $"{AppInfo.Name} - {System.IO.Path.GetFileName(path)}";
             ApplyImagePosition();
 
             if (IsLoaded) FitImageToWindow();
@@ -445,6 +473,8 @@ public partial class MainWindow : Window
         var centerY = (ImageViewport.ActualHeight - ImageView.Height) / 2.0;
         Canvas.SetLeft(ImageView, centerX + _offsetX);
         Canvas.SetTop(ImageView, centerY + _offsetY);
+        RedrawAnnotations();
+        if (_draftVisual != null) RefreshDraftVisual();
     }
 
     /// <summary>
@@ -589,6 +619,8 @@ public partial class MainWindow : Window
     {
         base.OnPreviewMouseDown(e);
         if (IsFromButton(e)) return;
+        if (HandleCompassDown(e)) return;
+        if (HandleAnnotationDown(e)) return;
 
         var mode = App.Settings.MoveMode;
         var wantsMove = e.ChangedButton switch
@@ -619,6 +651,8 @@ public partial class MainWindow : Window
     protected override void OnPreviewMouseMove(MouseEventArgs e)
     {
         base.OnPreviewMouseMove(e);
+        if (HandleCompassMove(e)) return;
+        if (HandleAnnotationMove(e)) return;
 
         if (_movingWindow)
         {
@@ -648,6 +682,8 @@ public partial class MainWindow : Window
     protected override void OnPreviewMouseUp(MouseButtonEventArgs e)
     {
         base.OnPreviewMouseUp(e);
+        if (HandleCompassUp(e)) return;
+        if (HandleAnnotationUp(e)) return;
         if (_movingWindow || _panningImage)
         {
             _movingWindow = false;
@@ -661,6 +697,9 @@ public partial class MainWindow : Window
     protected override void OnLostMouseCapture(MouseEventArgs e)
     {
         base.OnLostMouseCapture(e);
+        if (_compassOpen) CloseCompass();
+        _annotating = false;
+        ClearDraftVisual();
         _movingWindow = false;
         _panningImage = false;
         RestoreCursor();
@@ -732,5 +771,433 @@ public partial class MainWindow : Window
     {
         base.OnActivated(e);
         RenderOptions.SetBitmapScalingMode(ImageView, BitmapScalingMode.HighQuality);
+    }
+
+    // ---------------------------------------------------------------------
+    // Annotation compass (SolidWorks-style) and ink overlay
+    // ---------------------------------------------------------------------
+
+    private enum CompassAction
+    {
+        Pointer, Line, Wave, DoubleLine, Freehand, Circle,
+        EraserFree, EraserClick, SizeCycle, Red, ColorCycle, ClearAll
+    }
+
+    private sealed record CompassSector(string Label, string Glyph, Color Fill, CompassAction Action);
+
+    private static readonly double CompassInner = 36;
+    private static readonly double CompassOuter = 94;
+
+    private static List<CompassSector> BuildCompassSectors() => new()
+    {
+        new("指针", "✥", Color.FromArgb(235, 82, 116, 168), CompassAction.Pointer),
+        new("直线", "─", Color.FromArgb(235, 196, 92, 72), CompassAction.Line),
+        new("波浪", "∿", Color.FromArgb(235, 72, 152, 196), CompassAction.Wave),
+        new("双线", "═", Color.FromArgb(235, 132, 92, 196), CompassAction.DoubleLine),
+        new("自由", "✎", Color.FromArgb(235, 92, 168, 116), CompassAction.Freehand),
+        new("圈注", "◯", Color.FromArgb(235, 196, 152, 72), CompassAction.Circle),
+        new("擦除", "▱", Color.FromArgb(235, 120, 128, 140), CompassAction.EraserFree),
+        new("点擦", "⌫", Color.FromArgb(235, 144, 108, 108), CompassAction.EraserClick),
+        new("大小", "↕", Color.FromArgb(235, 96, 140, 168), CompassAction.SizeCycle),
+        new("红色", "●", Color.FromArgb(235, 208, 72, 72), CompassAction.Red),
+        new("换色", "◐", Color.FromArgb(235, 92, 176, 196), CompassAction.ColorCycle),
+        new("清空", "✕", Color.FromArgb(235, 150, 72, 72), CompassAction.ClearAll)
+    };
+
+    private ModifierKeys CompassModifiers => App.Settings.CompassModifier switch
+    {
+        CompassModifier.Shift => ModifierKeys.Shift,
+        CompassModifier.Alt => ModifierKeys.Alt,
+        CompassModifier.CtrlShift => ModifierKeys.Control | ModifierKeys.Shift,
+        CompassModifier.CtrlAlt => ModifierKeys.Control | ModifierKeys.Alt,
+        CompassModifier.ShiftAlt => ModifierKeys.Shift | ModifierKeys.Alt,
+        _ => ModifierKeys.Control
+    };
+
+    private MouseButton CompassMouseButton => App.Settings.CompassButton == CompassButton.Middle
+        ? MouseButton.Middle : MouseButton.Right;
+
+    private bool IsCompassTrigger(MouseButtonEventArgs e) =>
+        e.ChangedButton == CompassMouseButton && Keyboard.Modifiers == CompassModifiers;
+
+    private bool HandleCompassDown(MouseButtonEventArgs e)
+    {
+        if (_sourcePixels == null || !IsCompassTrigger(e)) return false;
+        OpenCompass(e.GetPosition(Root), e.GetPosition(ImageViewport));
+        CaptureMouse();
+        e.Handled = true;
+        return true;
+    }
+
+    private bool HandleCompassMove(MouseEventArgs e)
+    {
+        if (!_compassOpen) return false;
+        UpdateCompass(e.GetPosition(Root));
+        e.Handled = true;
+        return true;
+    }
+
+    private bool HandleCompassUp(MouseButtonEventArgs e)
+    {
+        if (!_compassOpen) return false;
+        UpdateCompass(e.GetPosition(Root));
+        if (_compassHover >= 0) InvokeCompass(_compassHover);
+        CloseCompass();
+        if (IsMouseCaptured) ReleaseMouseCapture();
+        e.Handled = true;
+        return true;
+    }
+
+    private void OpenCompass(Point rootPoint, Point imagePoint)
+    {
+        CloseCompass();
+        _compassOrigin = rootPoint;
+        _compassPointer = rootPoint;
+        _compassHover = -1;
+        _compassOpen = true;
+        _draftPointer = imagePoint;
+
+        _compassGuide = new Line
+        {
+            Stroke = new SolidColorBrush(Color.FromArgb(230, 255, 194, 71)),
+            StrokeThickness = 2,
+            StrokeDashArray = new DoubleCollection { 5, 4 },
+            IsHitTestVisible = false
+        };
+        CompassLayer.Children.Add(_compassGuide);
+        _compassVisuals.Add(_compassGuide);
+
+        for (var i = 0; i < _compassSectors.Count; i++)
+        {
+            var sector = _compassSectors[i];
+            var path = CreateSectorPath(rootPoint, i);
+            _compassPaths.Add(path);
+            CompassLayer.Children.Add(path);
+            _compassVisuals.Add(path);
+
+            var middle = (i + 0.5) * 30 - 90;
+            var radius = (CompassInner + CompassOuter) / 2;
+            var rad = middle * Math.PI / 180;
+            var label = new TextBlock
+            {
+                Text = sector.Glyph,
+                FontSize = 11,
+                FontWeight = FontWeights.SemiBold,
+                Foreground = Brushes.White,
+                Width = 30,
+                Height = 20,
+                TextAlignment = TextAlignment.Center,
+                IsHitTestVisible = false
+            };
+            Canvas.SetLeft(label, rootPoint.X + Math.Cos(rad) * radius - 15);
+            Canvas.SetTop(label, rootPoint.Y + Math.Sin(rad) * radius - 10);
+            CompassLayer.Children.Add(label);
+            _compassVisuals.Add(label);
+        }
+
+        var hub = new Ellipse
+        {
+            Width = CompassInner * 2, Height = CompassInner * 2,
+            Fill = new SolidColorBrush(Color.FromArgb(240, 20, 23, 30)),
+            Stroke = new SolidColorBrush(Color.FromArgb(180, 255, 255, 255)),
+            StrokeThickness = 1, IsHitTestVisible = false
+        };
+        Canvas.SetLeft(hub, rootPoint.X - CompassInner);
+        Canvas.SetTop(hub, rootPoint.Y - CompassInner);
+        CompassLayer.Children.Add(hub);
+        _compassVisuals.Add(hub);
+
+        var hubText = new TextBlock
+        {
+            Text = "标注", FontSize = 10, Foreground = Brushes.White,
+            Width = 52, Height = 18, TextAlignment = TextAlignment.Center,
+            IsHitTestVisible = false
+        };
+        Canvas.SetLeft(hubText, rootPoint.X - 26);
+        Canvas.SetTop(hubText, rootPoint.Y - 9);
+        CompassLayer.Children.Add(hubText);
+        _compassVisuals.Add(hubText);
+
+        UpdateCompass(rootPoint);
+    }
+
+    private Path CreateSectorPath(Point center, int index)
+    {
+        var start = index * 30 - 90;
+        var end = start + 30;
+        var geometry = new StreamGeometry();
+        using (var ctx = geometry.Open())
+        {
+            var innerStart = Polar(center, CompassInner, start);
+            var outerStart = Polar(center, CompassOuter, start);
+            var outerEnd = Polar(center, CompassOuter, end);
+            var innerEnd = Polar(center, CompassInner, end);
+            ctx.BeginFigure(innerStart, true, true);
+            ctx.LineTo(outerStart, true, true);
+            ctx.ArcTo(outerEnd, new Size(CompassOuter, CompassOuter), 0, false, SweepDirection.Clockwise, true, true);
+            ctx.LineTo(innerEnd, true, true);
+            ctx.ArcTo(innerStart, new Size(CompassInner, CompassInner), 0, false, SweepDirection.Counterclockwise, true, true);
+        }
+        var fill = _compassSectors[index].Fill;
+        return new Path
+        {
+            Data = geometry,
+            Fill = new SolidColorBrush(fill),
+            Stroke = new SolidColorBrush(Color.FromArgb(190, 255, 255, 255)),
+            StrokeThickness = 0.8,
+            IsHitTestVisible = false
+        };
+    }
+
+    private static double Hypot(double x, double y) => Math.Sqrt(x * x + y * y);
+
+    private static Point Polar(Point center, double radius, double degrees)
+    {
+        var rad = degrees * Math.PI / 180;
+        return new Point(center.X + Math.Cos(rad) * radius, center.Y + Math.Sin(rad) * radius);
+    }
+
+    private void UpdateCompass(Point pointer)
+    {
+        if (!_compassOpen) return;
+        _compassPointer = pointer;
+
+        if (_compassGuide != null)
+        {
+            _compassGuide.X1 = _compassOrigin.X;
+            _compassGuide.Y1 = _compassOrigin.Y;
+            _compassGuide.X2 = pointer.X;
+            _compassGuide.Y2 = pointer.Y;
+        }
+
+        var dx = pointer.X - _compassOrigin.X;
+        var dy = pointer.Y - _compassOrigin.Y;
+        var distance = Hypot(dx, dy);
+        var hover = -1;
+        if (distance >= CompassInner && distance <= CompassOuter * 1.5)
+        {
+            var angle = Math.Atan2(dy, dx) * 180 / Math.PI + 90;
+            if (angle < 0) angle += 360;
+            hover = (int)(angle / 30) % _compassSectors.Count;
+        }
+
+        if (hover == _compassHover) return;
+        _compassHover = hover;
+        for (var i = 0; i < _compassPaths.Count; i++)
+        {
+            var fill = _compassSectors[i].Fill;
+            var boost = i == hover ? 70 : 0;
+            _compassPaths[i].Fill = new SolidColorBrush(Color.FromArgb(
+                fill.A,
+                (byte)Math.Min(255, fill.R + boost),
+                (byte)Math.Min(255, fill.G + boost),
+                (byte)Math.Min(255, fill.B + boost)));
+            _compassPaths[i].StrokeThickness = i == hover ? 2 : 0.8;
+        }
+    }
+
+    private void CloseCompass()
+    {
+        _compassOpen = false;
+        _compassHover = -1;
+        _compassGuide = null;
+        _compassPaths.Clear();
+        foreach (var item in _compassVisuals) CompassLayer.Children.Remove(item);
+        _compassVisuals.Clear();
+    }
+
+    private void InvokeCompass(int index)
+    {
+        switch (_compassSectors[index].Action)
+        {
+            case CompassAction.Pointer: SetAnnotationTool(AnnotationTool.Pointer); break;
+            case CompassAction.Line: SetAnnotationTool(AnnotationTool.Line); break;
+            case CompassAction.Wave: SetAnnotationTool(AnnotationTool.Wave); break;
+            case CompassAction.DoubleLine: SetAnnotationTool(AnnotationTool.DoubleLine); break;
+            case CompassAction.Freehand: SetAnnotationTool(AnnotationTool.Freehand); break;
+            case CompassAction.Circle: SetAnnotationTool(AnnotationTool.Circle); break;
+            case CompassAction.EraserFree: SetAnnotationTool(AnnotationTool.EraserFree); break;
+            case CompassAction.EraserClick: SetAnnotationTool(AnnotationTool.EraserClick); break;
+            case CompassAction.SizeCycle:
+                _annotationSize = _annotationSize >= 10 ? 2 : _annotationSize + 2;
+                _eraserSize = 4 + _annotationSize * 4;
+                break;
+            case CompassAction.Red: _annotationColor = Color.FromRgb(255, 82, 82); break;
+            case CompassAction.ColorCycle:
+                _annotationColor = _annotationColor == Color.FromRgb(255, 82, 82) ? Color.FromRgb(255, 214, 64)
+                    : _annotationColor == Color.FromRgb(255, 214, 64) ? Color.FromRgb(64, 196, 255)
+                    : _annotationColor == Color.FromRgb(64, 196, 255) ? Color.FromRgb(96, 220, 120)
+                    : Color.FromRgb(255, 82, 82);
+                break;
+            case CompassAction.ClearAll:
+                _annotations.Clear();
+                AnnotationLayer.Children.Clear();
+                break;
+        }
+        ShowToolBadge();
+    }
+
+    private void SetAnnotationTool(AnnotationTool tool)
+    {
+        _annotationTool = tool;
+        Cursor = tool == AnnotationTool.Pointer ? Cursors.Arrow : Cursors.Cross;
+    }
+
+    private void ShowToolBadge()
+    {
+        var name = _annotationTool switch
+        {
+            AnnotationTool.Line => $"标注：直线 · {_annotationSize:0}",
+            AnnotationTool.Wave => $"标注：波浪线 · {_annotationSize:0}",
+            AnnotationTool.DoubleLine => $"标注：双线 · {_annotationSize:0}",
+            AnnotationTool.Freehand => $"标注：自由画 · {_annotationSize:0}",
+            AnnotationTool.Circle => $"标注：手绘圈注 · {_annotationSize:0}",
+            AnnotationTool.EraserFree => $"标注：自由擦除 · {_eraserSize:0}",
+            AnnotationTool.EraserClick => "标注：点击擦除元素",
+            _ => string.Empty
+        };
+        ToolBadgeText.Text = name;
+        ToolBadge.Visibility = string.IsNullOrEmpty(name) ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    // ---------------- annotation drawing ----------------
+
+    private bool HandleAnnotationDown(MouseButtonEventArgs e)
+    {
+        if (_sourcePixels == null || _annotationTool == AnnotationTool.Pointer || e.ChangedButton != MouseButton.Left)
+            return false;
+
+        var point = e.GetPosition(ImageViewport);
+        if (_annotationTool == AnnotationTool.EraserClick)
+        {
+            EraseAt(point, Math.Max(_eraserSize, 10));
+            e.Handled = true;
+            return true;
+        }
+
+        _annotating = true;
+        _draftPoints = new List<Point> { ToImageSpace(point) };
+        _draftPointer = point;
+        RefreshDraftVisual();
+        CaptureMouse();
+        e.Handled = true;
+        return true;
+    }
+
+    private bool HandleAnnotationMove(MouseEventArgs e)
+    {
+        if (!_annotating) return false;
+        var point = e.GetPosition(ImageViewport);
+        _draftPointer = point;
+
+        if (_annotationTool == AnnotationTool.EraserFree)
+        {
+            EraseAt(point, _eraserSize);
+            e.Handled = true;
+            return true;
+        }
+
+        var normalized = ToImageSpace(point);
+        var last = _draftPoints[^1];
+        var lastViewport = ToViewportSpace(last);
+        if (Hypot(point.X - lastViewport.X, point.Y - lastViewport.Y) >= 1.5)
+        {
+            _draftPoints.Add(normalized);
+            RefreshDraftVisual();
+        }
+        e.Handled = true;
+        return true;
+    }
+
+    private bool HandleAnnotationUp(MouseButtonEventArgs e)
+    {
+        if (!_annotating) return false;
+        _annotating = false;
+        ClearDraftVisual();
+
+        if (_annotationTool != AnnotationTool.EraserFree && _draftPoints.Count >= 2)
+        {
+            _annotations.Add(new AnnotationStroke(_annotationTool, _draftPoints,
+                _annotationColor, _annotationSize));
+            RedrawAnnotations();
+        }
+        _draftPoints.Clear();
+        if (IsMouseCaptured) ReleaseMouseCapture();
+        e.Handled = true;
+        return true;
+    }
+
+    private Point ToImageSpace(Point viewportPoint)
+    {
+        var left = Canvas.GetLeft(ImageView);
+        var top = Canvas.GetTop(ImageView);
+        if (double.IsNaN(left)) left = 0;
+        if (double.IsNaN(top)) top = 0;
+        var width = Math.Max(1, ImageView.ActualWidth);
+        var height = Math.Max(1, ImageView.ActualHeight);
+        return new Point((viewportPoint.X - left) / width, (viewportPoint.Y - top) / height);
+    }
+
+    private Point ToViewportSpace(Point imagePoint)
+    {
+        var left = Canvas.GetLeft(ImageView);
+        var top = Canvas.GetTop(ImageView);
+        if (double.IsNaN(left)) left = 0;
+        if (double.IsNaN(top)) top = 0;
+        return new Point(left + imagePoint.X * ImageView.ActualWidth,
+            top + imagePoint.Y * ImageView.ActualHeight);
+    }
+
+    private void RedrawAnnotations()
+    {
+        AnnotationLayer.Children.Clear();
+        foreach (var stroke in _annotations)
+            AnnotationLayer.Children.Add(stroke.CreateVisual(ToViewportSpace));
+    }
+
+    private void RefreshDraftVisual()
+    {
+        ClearDraftVisual();
+        if (_draftPoints.Count == 0) return;
+
+        if (_annotationTool is AnnotationTool.EraserFree or AnnotationTool.EraserClick)
+        {
+            var cursor = new Ellipse
+            {
+                Width = _eraserSize * 2, Height = _eraserSize * 2,
+                Stroke = new SolidColorBrush(Color.FromArgb(220, 255, 255, 255)),
+                StrokeThickness = 1, StrokeDashArray = new DoubleCollection { 3, 3 },
+                Fill = new SolidColorBrush(Color.FromArgb(30, 255, 255, 255)),
+                IsHitTestVisible = false
+            };
+            Canvas.SetLeft(cursor, _draftPointer.X - _eraserSize);
+            Canvas.SetTop(cursor, _draftPointer.Y - _eraserSize);
+            _draftVisual = cursor;
+        }
+        else
+        {
+            var draft = new AnnotationStroke(_annotationTool, _draftPoints, _annotationColor, _annotationSize);
+            _draftVisual = draft.CreateVisual(ToViewportSpace);
+        }
+        AnnotationLayer.Children.Add(_draftVisual);
+    }
+
+    private void ClearDraftVisual()
+    {
+        if (_draftVisual != null) AnnotationLayer.Children.Remove(_draftVisual);
+        _draftVisual = null;
+    }
+
+    private void EraseAt(Point viewportPoint, double radius)
+    {
+        for (var i = _annotations.Count - 1; i >= 0; i--)
+        {
+            if (_annotations[i].HitTest(viewportPoint, ToViewportSpace, radius))
+            {
+                _annotations.RemoveAt(i);
+                RedrawAnnotations();
+                return;
+            }
+        }
     }
 }

@@ -250,6 +250,10 @@ public static string SettingsPath => Path.Combine(SettingsDirectory, "settings.j
 | R63 | 重建安装向导：修复下一步灰显，加入实时校验、分阶段日志与错误详情 | 已实现 | `src/WBInstaller/Program.cs` |
 | R64 | 安装界面改为左侧步骤导航＋右侧内容＋底部状态栏布局 | 已实现 | `src/WBInstaller/Program.cs` |
 | R65 | 重做主题 Logo 并全面应用到窗口、托盘、任务栏、资源管理器、任务管理器与安装程序 | 已实现 | `Assets/app.ico`、`Assets/app.png`、各窗口与项目配置 |
+| R66 | 修复 1.6.0 单文件无界面/无托盘：MultiTrigger 承载 Binding 导致窗口模板加载异常 | 已修复 | `MainWindow.xaml` |
+| R67 | 用 TableLayoutPanel 重建安装主体，修复左侧步骤区覆盖右侧内容区 | 已修复 | `src/WBInstaller/Program.cs` |
+| R68 | 静默写入 UserChoice 哈希自动成为默认程序，并注入图片右键菜单 | 已实现 | `DefaultAssociationService.cs`、安装程序、设置窗口 |
+| R69 | 图片标注与 SolidWorks 风格罗盘菜单（含橡皮擦全套功能与可配置触发键） | 已实现 | `AnnotationModels.cs`、`MainWindow.xaml(.cs)`、`AppSettings.cs` |
 
 ---
 
@@ -3176,9 +3180,155 @@ for (var i = 0; i < names.Length; i++)
 **验证**：新 PNG 已人工目视确认；编译零警告零错误；两个封装脚本 `--ci` 通过，产物版本为 1.6.0；安装程序 exe 启动正常。
 
 
+
+---
+
+### R66 修复 1.6.0 单文件无法启动
+
+**需求原文摘要**：1.6.0 版本单文件程序无法运行，打开后没有软件界面，托盘图标也没有显示。
+
+**实现状态**：已修复。
+
+**根因**：R61 把图钉悬停发光写成 `<MultiTrigger>`，并在其中放了带 `Binding` 的 `<Condition>`。WPF 的 `MultiTrigger` 只接受 `Property` 条件，带 Binding 的条件必须放在 `MultiDataTrigger`；加载 `MainWindow.xaml` 的按钮模板时抛出 `XamlParseException → Condition.Seal(): 不能将 Property 为 null 的条件封印`。异常发生在 `App.OpenFiles → new MainWindow()`，所以窗口和托盘都没有创建。此前的 `dotnet build` 只做 XAML 编译，不执行模板封印，因此编译阶段没有暴露。
+
+**实现方式**：`MainWindow.xaml`。
+
+```xml
+<!-- 错误写法 -->
+<MultiTrigger>
+  <MultiTrigger.Conditions>
+    <Condition Property="IsMouseOver" Value="True" />
+    <Condition Binding="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}" Value="Pinned" />
+  </MultiTrigger.Conditions>
+</MultiTrigger>
+
+<!-- 正确写法 -->
+<MultiDataTrigger>
+  <MultiDataTrigger.Conditions>
+    <Condition Binding="{Binding IsMouseOver, RelativeSource={RelativeSource TemplatedParent}}" Value="True" />
+    <Condition Binding="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}" Value="Pinned" />
+  </MultiDataTrigger.Conditions>
+  <Setter TargetName="PinHalo" Property="Opacity" Value="0.85" />
+</MultiDataTrigger>
+```
+
+**验证**：`dotnet build -c Release` 后直接运行 `GuaishushuViewer.dll` 无任何未处理异常；启动进程 `MainWindowTitle` 为“怪叔叔看图”，窗口与托盘均正常创建。
+
+---
+
+### R67 安装主体改用 TableLayoutPanel
+
+**需求原文摘要**：安装界面左边构建了步骤显示区，但没有兼顾整体，导致右边内容区被覆盖；要求调整布局逻辑，不要再犯低级错误。
+
+**实现状态**：已修复。
+
+**根因**：R64 在同一个 `Panel` 里先 `Controls.Add(_side)`（`Dock=Left`），再 `Controls.Add(_content)`（`Dock=Fill`）。WinForms 的 Dock 按 z-order 从后往前生效，后加入的 Fill 控件先占满整个父容器，Left 控件随后覆盖在它左侧，导致内容区被步骤区遮挡。
+
+**实现方式**：`src/WBInstaller/Program.cs` 的 `BuildBody()` 改为显式两列表格，不再依赖 Dock 顺序。
+
+```csharp
+var table = new TableLayoutPanel
+{
+    Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1,
+    BackColor = Color.White, Margin = Padding.Empty, Padding = Padding.Empty
+};
+table.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 172F));
+table.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+table.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+_side.Dock = DockStyle.Fill;
+_content.Dock = DockStyle.Fill;
+table.Controls.Add(_side, 0, 0);
+table.Controls.Add(_content, 1, 0);
+_body.Controls.Add(table);
+```
+
+**验证**：安装程序实启动窗口标题正常；左栏 172px、右栏占满剩余宽度，两个区域在布局层面互斥，不可能重叠。
+
+---
+
+### R68 静默默认关联与图片右键菜单
+
+**需求原文摘要**：安装后应自动关联成为图片默认打开程序，而不是弹出 Windows 程序管理设置窗口；另外在图片文件右键加入“用本软件打开”菜单。
+
+**实现状态**：已实现。
+
+**实现逻辑**：
+1. 新建 `Services/DefaultAssociationService.cs` 作为唯一关联入口，查看器与安装程序共用（通过 `<Compile Include>` 链接到安装程序）。
+2. Windows 8+ 的默认选择保存在 `HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\FileExts\<ext>\UserChoice`，由 `ProgId` + `Hash` 双值构成；只写 `OpenWithProgids` 只能成为候选。新服务按社区逆向出的 shell 算法计算哈希：构造 `extension + SID + progId + 注册表键写入时间(钳制到分钟) + 固定 experience 字符串 + \0`，UTF-16LE 小写后取 MD5，再经两组 32 位乘加混合 `Sub1/Sub2` 异或，Base64 写入 `Hash`。
+3. `ApplyAll()` 同时完成：注册 ProgID/DefaultIcon/open command、扩展名默认值与 OpenWithProgids、UserChoice 哈希、右键动词、ApplicationAssociationToasts 抑制提示，并刷新 Shell。
+4. 右键菜单写入 `HKCU\Software\Classes\SystemFileAssociations\<ext>\shell\GuaishushuViewer.Open`，标题“用怪叔叔看图打开”，带本程序图标与命令行；即使当前默认程序是别的软件也会显示。
+5. 安装向导的“注册 ProgID / 注册关联候选”两阶段合并为“设为默认打开程序并注入右键菜单”；任何格式失败都会把具体错误写进安装日志并让安装失败，可重试。完成页不再出现“打开默认应用确认窗口”选项，`--set-default` 不再调用 `OpenChooseAppDialog()`。
+6. 设置窗口的按钮改为“立即应用默认关联”，提示文案说明使用 UserChoice 哈希且失败会提示。
+
+**实现方式**：`src/WBImageViewer/Services/DefaultAssociationService.cs`、`App.xaml.cs`、`FileAssociationService.cs`、`SettingsWindow.xaml(.cs)`、`src/WBInstaller/Program.cs`、`WBInstaller.csproj`。
+
+```csharp
+var source = (normalized + sid + progId + regDate + Experience + "\0").ToLowerInvariant();
+var bytes = Encoding.Unicode.GetBytes(source);
+var md5 = MD5.HashData(bytes);
+var hash = Convert.ToBase64String(XorBytes(Sub1(bytes, md5), Sub2(bytes, md5)));
+key.SetValue("ProgId", progId);
+key.SetValue("Hash", hash);
+```
+
+```csharp
+using var verb = Registry.CurrentUser.CreateSubKey(
+    $@"Software\Classes\SystemFileAssociations\{extension}\shell\GuaishushuViewer.Open");
+verb.SetValue(string.Empty, "用怪叔叔看图打开");
+verb.SetValue("Icon", $"\"{executablePath},0\"");
+using var command = verb.CreateSubKey("command");
+command.SetValue(string.Empty, $"\"{executablePath}\" \"%1\"");
+```
+
+**验证**：两个项目均编译通过；`--set-default` 与安装程序共用同一入口，错误通过安装日志/MessageBox 明确报告。该算法属于未公开机制，档案中保留“系统更新可能改变算法”的风险说明。
+
+---
+
+### R69 图片标注与罗盘菜单
+
+**需求原文摘要**：增加直线、波浪线、双线、自由画线、手绘圈注、橡皮擦（自由擦除、点击擦除元素、调节笔触大小、全部清除）等标注；用类似 SolidWorks 鼠标罗盘的方式管理颜色/擦除方式/笔触；默认 `Ctrl + 鼠标右键` 拖动触发，拖动时显示从起点跟随鼠标的指示线；快捷键可在后台设置。
+
+**实现状态**：已实现。
+
+**实现逻辑**：
+1. 新增 `Models/AnnotationModels.cs`：`AnnotationTool` 枚举与 `AnnotationStroke`。笔迹点以**图片归一化坐标 0..1** 保存，`CreateVisual(toViewport)` 与 `HitTest` 在渲染/命中时换算到视口坐标，因此缩放、平移、窗口尺寸变化后笔迹始终贴合图片。
+2. 波浪线按两点间正弦采样生成；双线按法线偏移生成两条平行线；圈注按拖拽包围盒生成带轻微抖动的闭合椭圆；自由画保留采样点。
+3. 橡皮擦：`EraserFree` 拖动时逐段命中并删除笔迹，显示虚线圆形笔触预览；`EraserClick` 单击删除命中的整条笔迹；“大小”扇区循环笔触与橡皮尺寸；“清空”扇区删除全部笔迹。
+4. `MainWindow.xaml` 在图片画布之上加入 `AnnotationLayer` 与 `CompassLayer` 两个 `IsHitTestVisible=False` 的 Canvas；左下角 `ToolBadge` 常驻显示当前工具和笔触大小。
+5. 罗盘为 12 个 30° 扇区（指针/直线/波浪/双线/自由/圈注/擦除/点擦/大小/红/换色/清空），用 `StreamGeometry` 绘制内外半径 36/94 的扇环；按下点为中心，拖动时 `Line` 虚线从起点连到光标，当前扇区提亮加粗；松手触发对应动作。
+6. 触发条件由 `AppSettings.CompassModifier`（Ctrl/Shift/Alt/组合）与 `CompassButton`（右键/中键）决定，默认 `Ctrl + 右键`；后台设置页新增两个下拉框。`OnPreviewMouseDown/Move/Up` 优先处理罗盘与标注，避免与原有窗口拖动、图片平移冲突。
+
+**实现方式**：`src/WBImageViewer/Models/AnnotationModels.cs`、`MainWindow.xaml`、`MainWindow.xaml.cs`、`Models/AppSettings.cs`、`SettingsWindow.xaml(.cs)`。
+
+```csharp
+private bool IsCompassTrigger(MouseButtonEventArgs e) =>
+    e.ChangedButton == CompassMouseButton && Keyboard.Modifiers == CompassModifiers;
+```
+
+```csharp
+var source = (normalized + sid + progId + regDate + Experience + "\0").ToLowerInvariant();
+```
+
+```csharp
+_annotations.Add(new AnnotationStroke(_annotationTool, _draftPoints,
+    _annotationColor, _annotationSize));
+RedrawAnnotations();
+```
+
+**验证**：编译 0 警告 0 错误；启动后无 XAML 异常；罗盘扇区左右对称覆盖 360°，指示线跟随光标，松手触发；笔迹在 `ApplyImagePosition()` 中随图片重绘。
+
+
 ---
 
 ## 11. 版本变更记录
+
+### 1.7.0（2026-11-18）
+
+- 修复 1.6.0 单文件无界面/无托盘：图钉悬停条件由 `MultiTrigger` 改为 `MultiDataTrigger`（R66）。
+- 安装主体改用 `TableLayoutPanel` 两列布局，彻底消除左侧步骤区覆盖右侧内容区（R67）。
+- 新增 `DefaultAssociationService`：静默写入 UserChoice 哈希自动成为图片默认程序，并注入“用怪叔叔看图打开”右键菜单；安装与设置均不再弹出默认应用窗口（R68）。
+- 新增图片标注与 SolidWorks 风格罗盘菜单：直线/波浪/双线/自由画/圈注/橡皮擦全套功能，12 扇区、跟随指示线、可配置触发键（R69）。
+- 版本号升至 1.7.0，README 与开发档案同步。
 
 ### 1.6.0（2026-11-18）
 

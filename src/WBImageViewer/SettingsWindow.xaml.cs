@@ -21,6 +21,8 @@ public partial class SettingsWindow : Window
         var settings = App.Settings;
         SingleWindowBox.IsChecked = settings.SingleWindow;
         SelectByTag(MoveModeBox, settings.MoveMode.ToString());
+        SelectByTag(CompassModifierBox, settings.CompassModifier.ToString());
+        SelectByTag(CompassButtonBox, settings.CompassButton.ToString());
         TopMostBox.Text = settings.ToggleTopMostHotkey;
         FitWindowBox.Text = settings.FitWindowToImageHotkey;
         FitImageBox.Text = settings.FitImageToWindowHotkey;
@@ -98,9 +100,23 @@ public partial class SettingsWindow : Window
             BackgroundColorBox.Text = $"#{dialog.Color.R:X2}{dialog.Color.G:X2}{dialog.Color.B:X2}";
     }
 
-    private void ChooseDefault_Click(object sender, RoutedEventArgs e)
+    private void ApplyDefaults_Click(object sender, RoutedEventArgs e)
     {
-        FileAssociationService.OpenChooseAppDialog();
+        try
+        {
+            var exe = Environment.ProcessPath ?? System.IO.Path.Combine(AppContext.BaseDirectory, "GuaishushuViewer.exe");
+            var errors = DefaultAssociationService.ApplyAll(exe, SupportedFormats.All);
+            MessageBox.Show(errors.Count == 0
+                    ? "已把支持的图片、脑图与流程图格式设为默认打开方式，并注入右键菜单。"
+                    : "部分格式未成功：\n" + string.Join("\n", errors),
+                "怪叔叔看图", MessageBoxButton.OK,
+                errors.Count == 0 ? MessageBoxImage.Information : MessageBoxImage.Warning);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show("应用默认关联失败：" + ex.Message, "怪叔叔看图",
+                MessageBoxButton.OK, MessageBoxImage.Error);
+        }
     }
 
     private void Save_Click(object sender, RoutedEventArgs e)
@@ -160,6 +176,10 @@ public partial class SettingsWindow : Window
             SingleWindow = SingleWindowBox.IsChecked == true,
             MoveMode = Enum.TryParse<WindowMoveMode>(SelectedTag(MoveModeBox), ignoreCase: true, out var mode)
                 ? mode : WindowMoveMode.RightButton,
+            CompassModifier = Enum.TryParse<CompassModifier>(SelectedTag(CompassModifierBox), ignoreCase: true, out var compassModifier)
+                ? compassModifier : CompassModifier.Ctrl,
+            CompassButton = Enum.TryParse<CompassButton>(SelectedTag(CompassButtonBox), ignoreCase: true, out var compassButton)
+                ? compassButton : CompassButton.Right,
             ToggleTopMostHotkey = topMost,
             FitWindowToImageHotkey = fitWindow,
             FitImageToWindowHotkey = fitImage,

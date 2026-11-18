@@ -20,6 +20,34 @@
             <ComboBoxItem Content="按住空格 + 鼠标左键拖动" Tag="SpaceAndLeftButton" />
         </ComboBox>
 
+        <TextBlock Text="标注罗盘触发方式（按住修饰键 + 鼠标键拖动到扇区）" FontWeight="SemiBold" Margin="0,0,0,6" />
+        <Grid Margin="0,0,0,14">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="190" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Text="修饰键" VerticalAlignment="Center" />
+            <ComboBox x:Name="CompassModifierBox" Grid.Column="1">
+                <ComboBoxItem Content="Ctrl（默认）" Tag="Ctrl" />
+                <ComboBoxItem Content="Shift" Tag="Shift" />
+                <ComboBoxItem Content="Alt" Tag="Alt" />
+                <ComboBoxItem Content="Ctrl + Shift" Tag="CtrlShift" />
+                <ComboBoxItem Content="Ctrl + Alt" Tag="CtrlAlt" />
+                <ComboBoxItem Content="Shift + Alt" Tag="ShiftAlt" />
+            </ComboBox>
+        </Grid>
+        <Grid Margin="0,0,0,14">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="190" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Text="鼠标键" VerticalAlignment="Center" />
+            <ComboBox x:Name="CompassButtonBox" Grid.Column="1">
+                <ComboBoxItem Content="右键（默认）" Tag="Right" />
+                <ComboBoxItem Content="中键" Tag="Middle" />
+            </ComboBox>
+        </Grid>
+
         <TextBlock Text="全局快捷键（点击输入框后直接按下组合键，Esc 清空）" FontWeight="SemiBold" Margin="0,0,0,6" />
         <Grid Margin="0,0,0,14">
             <Grid.ColumnDefinitions>
@@ -77,9 +105,9 @@
         <CheckBox x:Name="AutoOptimizeBox" Content="打开图片时自动应用智能优化预设（全部归零即恢复原始图片）"
                   Margin="0,0,0,14" />
 
-        <CheckBox x:Name="AssociateBox" Content="注册为系统默认图片查看器（启动本软件时自动应用）" Margin="0,0,0,4" />
-        <TextBlock Text="Windows 会保护用户的默认选择；点击下方按钮，在弹出的“打开方式”中选中 WB 参考图一次即可。" Foreground="#FF6B7280" FontSize="11" Margin="21,0,0,8" />
-        <Button Content="打开 Windows 默认程序选择对话框" HorizontalAlignment="Left" Padding="12,6" Margin="21,0,0,14" Click="ChooseDefault_Click" />
+        <CheckBox x:Name="AssociateBox" Content="注册为系统默认图片查看器并注入右键菜单（启动时自动应用）" Margin="0,0,0,4" />
+        <TextBlock Text="使用系统 UserChoice 哈希静默设为默认；若 Windows 未来更新改变算法，错误会即时提示。" Foreground="#FF6B7280" FontSize="11" Margin="21,0,0,8" />
+        <Button Content="立即应用默认关联" HorizontalAlignment="Left" Padding="12,6" Margin="21,0,0,14" Click="ApplyDefaults_Click" />
 
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
             <Button Content="保存" Width="88" Padding="10,6" IsDefault="True" Click="Save_Click" />

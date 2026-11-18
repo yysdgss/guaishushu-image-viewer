@@ -61,6 +61,16 @@ internal static class FileAssociationService
             openWith.SetValue(ProgId, string.Empty, RegistryValueKind.String);
         }
 
+        // Apply real UserChoice defaults plus the Explorer right-click verb.
+        try
+        {
+            DefaultAssociationService.ApplyAll(exe, Extensions);
+        }
+        catch
+        {
+            // Settings page still keeps the candidate registration if the hash path fails.
+        }
+
         SettingsService.Save(settings);
         NotifyShell();
     }
@@ -91,6 +101,8 @@ internal static class FileAssociationService
         }
 
         settings.PreviousAssociations.Clear();
+
+        try { DefaultAssociationService.RemoveAll(Extensions); } catch { /* best effort */ }
 
         using var root = Registry.CurrentUser.OpenSubKey(@"Software\Classes", true);
         root?.DeleteSubKeyTree(ProgId, false);

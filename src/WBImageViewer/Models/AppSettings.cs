@@ -9,6 +9,22 @@ public enum WindowMoveMode
     SpaceAndLeftButton
 }
 
+public enum CompassModifier
+{
+    Ctrl,
+    Shift,
+    Alt,
+    CtrlShift,
+    CtrlAlt,
+    ShiftAlt
+}
+
+public enum CompassButton
+{
+    Right,
+    Middle
+}
+
 public sealed class AppSettings
 {
     public bool SingleWindow { get; set; } = true;
@@ -27,6 +43,13 @@ public sealed class AppSettings
 
     [JsonConverter(typeof(JsonStringEnumConverter))]
     public WindowMoveMode MoveMode { get; set; } = WindowMoveMode.RightButton;
+
+    /// <summary>Modifier held while pressing CompassButton to open the annotation compass.</summary>
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public CompassModifier CompassModifier { get; set; } = CompassModifier.Ctrl;
+
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public CompassButton CompassButton { get; set; } = CompassButton.Right;
 
     public string ToggleTopMostHotkey { get; set; } = "Shift+Ctrl+Alt+T";
     public string FitWindowToImageHotkey { get; set; } = "Shift+Ctrl+Alt+R";

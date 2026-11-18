@@ -91,6 +91,13 @@
                    RenderOptions.BitmapScalingMode="HighQuality" />
         </Canvas>
 
+        <!-- Stroke overlay and the SolidWorks-style annotation compass. Both are
+             hit-test transparent so the viewport keeps receiving pointer input. -->
+        <Canvas x:Name="AnnotationLayer" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                ClipToBounds="True" IsHitTestVisible="False" />
+        <Canvas x:Name="CompassLayer" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                ClipToBounds="True" IsHitTestVisible="False" />
+
         <TextBlock x:Name="Hint"
                    Text="拖入图片，或在资源管理器中双击图片文件"
                    FontSize="14"
@@ -98,6 +105,13 @@
                    HorizontalAlignment="Center"
                    VerticalAlignment="Center"
                    IsHitTestVisible="False" />
+
+        <Border x:Name="ToolBadge" HorizontalAlignment="Left" VerticalAlignment="Bottom"
+                Margin="10,0,0,10" Padding="8,4" CornerRadius="6"
+                Background="#CC101216" BorderBrush="#55FFFFFF" BorderThickness="1"
+                Visibility="Collapsed" IsHitTestVisible="False">
+            <TextBlock x:Name="ToolBadgeText" Text="标注：指针" FontSize="11" Foreground="#FFE8EAED" />
+        </Border>
 
         <!-- Dynamic island: grows directly out of the window's top edge. The top edge sits at
              y=0 flush/tangent with the window border (no outward hairline "tail"), and the two
@@ -284,13 +298,13 @@
                                             <Setter TargetName="PinNeedle" Property="Stroke" Value="#FF9AA3B2" />
                                             <Setter TargetName="PinHalo" Property="Opacity" Value="0" />
                                         </DataTrigger>
-                                        <MultiTrigger>
-                                            <MultiTrigger.Conditions>
-                                                <Condition Property="IsMouseOver" Value="True" />
+                                        <MultiDataTrigger>
+                                            <MultiDataTrigger.Conditions>
+                                                <Condition Binding="{Binding IsMouseOver, RelativeSource={RelativeSource TemplatedParent}}" Value="True" />
                                                 <Condition Binding="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}" Value="Pinned" />
-                                            </MultiTrigger.Conditions>
+                                            </MultiDataTrigger.Conditions>
                                             <Setter TargetName="PinHalo" Property="Opacity" Value="0.85" />
-                                        </MultiTrigger>
+                                        </MultiDataTrigger>
                                     </ControlTemplate.Triggers>
                                 </ControlTemplate>
                             </Button.Template>

@@ -5,6 +5,7 @@ using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using Microsoft.Win32;
 using WBImageViewer.Models;
+using WBImageViewer.Services;
 
 namespace WBInstaller;
 
@@ -63,7 +64,6 @@ internal sealed class InstallWizard : Form
     };
 
     private readonly CheckBox _runApp = new() { Text = "安装完成后运行 怪叔叔看图(&R)", Checked = true };
-    private readonly CheckBox _setDefault = new() { Text = "打开 Windows 默认应用确认窗口(&D)", Checked = true };
 
     private readonly Button _back = new() { Text = "上一步(&B)", Size = new Size(86, 32) };
     private readonly Button _next = new() { Text = "下一步(&N)", Size = new Size(100, 32) };
@@ -73,7 +73,6 @@ internal sealed class InstallWizard : Form
     private int _page;
     private bool _installing;
     private bool _installFailed;
-    private bool _installed;
     private bool _destinationValid;
     private string _destination;
 
@@ -154,8 +153,17 @@ internal sealed class InstallWizard : Form
         _body.BackColor = Color.White;
         Controls.Add(_body);
 
-        _side.Dock = DockStyle.Left;
-        _side.Width = 172;
+        // Explicit two-column layout: the step list can never overlap the page area.
+        var table = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1,
+            BackColor = Color.White, Margin = Padding.Empty, Padding = Padding.Empty
+        };
+        table.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 172F));
+        table.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+        table.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+
+        _side.Dock = DockStyle.Fill;
         _side.BackColor = Color.FromArgb(243, 246, 250);
         _side.Paint += (_, e) =>
         {
@@ -176,12 +184,13 @@ internal sealed class InstallWizard : Form
             _stepLabels[i] = label;
             _side.Controls.Add(label);
         }
-        _body.Controls.Add(_side);
+        table.Controls.Add(_side, 0, 0);
 
         _content.Dock = DockStyle.Fill;
         _content.BackColor = Color.White;
         _content.Padding = new Padding(26, 20, 22, 16);
-        _body.Controls.Add(_content);
+        table.Controls.Add(_content, 1, 0);
+        _body.Controls.Add(table);
     }
 
     private void BuildFooter()
@@ -277,14 +286,12 @@ internal sealed class InstallWizard : Form
         AddTitle(_pages[4], "安装完成");
         AddBody(_pages[4],
             "怪叔叔看图 已成功安装到您的计算机。\n\n" +
-            "若希望它成为图片默认查看器，请在随后打开的 Windows 窗口中\n" +
-            "选择“怪叔叔看图”并勾选“始终使用此应用打开”。\n\n" +
+            "安装过程中已自动把常用图片、脑图与流程图格式关联为本程序的默认打开方式，\n" +
+            "并在图片右键菜单中加入“用怪叔叔看图打开”。\n\n" +
             "可在“设置 → 应用 → 安装的应用”中卸载本程序。", 54);
-        _runApp.Location = new Point(24, 228);
+        _runApp.Location = new Point(24, 238);
         _runApp.AutoSize = true;
-        _setDefault.Location = new Point(24, 258);
-        _setDefault.AutoSize = true;
-        _pages[4].Controls.AddRange(_runApp, _setDefault);
+        _pages[4].Controls.Add(_runApp);
 
         foreach (var page in _pages)
         {
@@ -516,8 +523,6 @@ internal sealed class InstallWizard : Form
             {
                 if (_runApp.Checked && File.Exists(exe))
                     Process.Start(new ProcessStartInfo(exe) { UseShellExecute = true });
-                if (_setDefault.Checked && _installed && File.Exists(exe))
-                    Process.Start(new ProcessStartInfo(exe, "--set-default") { UseShellExecute = true });
             }
             catch (Exception ex)
             {
@@ -542,7 +547,6 @@ internal sealed class InstallWizard : Form
 
         if (result)
         {
-            _installed = true;
             _installFailed = false;
             _progress.Value = 100;
             _currentStep.Text = "安装已成功完成";
@@ -601,28 +605,13 @@ internal sealed class InstallWizard : Form
                 resource.CopyTo(file);
             })) return false;
 
-        if (!Stage(progress, 50, "注册 ProgID 与图标", () =>
+        if (!Stage(progress, 62, "设为默认打开程序并注入右键菜单", () =>
             {
-                using var progId = Registry.CurrentUser.CreateSubKey($@"Software\Classes\{ProgId}");
-                progId.SetValue(string.Empty, "怪叔叔看图");
-                using var icon = progId.CreateSubKey("DefaultIcon");
-                icon.SetValue(string.Empty, $"\"{exePath},0\"");
-                using var command = progId.CreateSubKey(@"shell\open\command");
-                command.SetValue(string.Empty, $"\"{exePath}\" \"%1\"");
-            })) return false;
-
-        if (!Stage(progress, 72, "注册文件关联候选", () =>
-            {
-                using var toasts = Registry.CurrentUser.CreateSubKey(
-                    @"Software\Microsoft\Windows\CurrentVersion\ApplicationAssociationToasts");
-                foreach (var extension in Extensions)
-                {
-                    using var key = Registry.CurrentUser.CreateSubKey($@"Software\Classes\{extension}");
-                    key.SetValue(string.Empty, ProgId);
-                    using var openWith = key.CreateSubKey("OpenWithProgids");
-                    openWith.SetValue(ProgId, string.Empty, RegistryValueKind.String);
-                    toasts.SetValue(ProgId + "_" + extension, 0, RegistryValueKind.DWord);
-                }
+                var errors = DefaultAssociationService.ApplyAll(exePath, Extensions);
+                foreach (var error in errors)
+                    progress.Report(new InstallEvent(InstallEventKind.Error, 62, error));
+                if (errors.Count > 0)
+                    throw new InvalidOperationException($"{errors.Count} 个格式未能完成默认关联，详情见错误日志。");
             })) return false;
 
         if (!Stage(progress, 88, "创建快捷方式", () =>

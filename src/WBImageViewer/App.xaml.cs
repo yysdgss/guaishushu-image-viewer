@@ -48,8 +48,19 @@ public partial class App : Application
 
         if (e.Args.Any(arg => arg is "--set-default" or "--setdefault"))
         {
-            try { FileAssociationService.Apply(Settings); } catch { /* best effort */ }
-            FileAssociationService.OpenChooseAppDialog();
+            try
+            {
+                var exe = Environment.ProcessPath ?? Path.Combine(AppContext.BaseDirectory, "GuaishushuViewer.exe");
+                var errors = DefaultAssociationService.ApplyAll(exe, SupportedFormats.All);
+                if (errors.Count > 0)
+                    MessageBox.Show("部分格式未能设为默认：\n" + string.Join("\n", errors),
+                        "怪叔叔看图", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("设置默认打开程序失败：" + ex.Message,
+                    "怪叔叔看图", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
             Shutdown();
             return;
         }
