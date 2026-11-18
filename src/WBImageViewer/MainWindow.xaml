@@ -3,6 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         Title="怪叔叔看图"
+        Icon="Assets/app.ico"
         Width="760" Height="560"
         MinWidth="140" MinHeight="100"
         WindowStyle="None"

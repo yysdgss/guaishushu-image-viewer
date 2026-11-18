@@ -12,7 +12,7 @@
     <ApplicationIcon>Assets\app.ico</ApplicationIcon>
     <!-- Single source of truth for the product version. AppInfo and both packaging
          scripts read this value; never duplicate it in code or batch files. -->
-    <Version>1.5.0</Version>
+    <Version>1.6.0</Version>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <Product>怪叔叔看图</Product>
     <Authors>怪叔叔</Authors>
@@ -20,6 +20,7 @@
 
   <ItemGroup>
     <Resource Include="Assets\app.ico" />
+    <Resource Include="Assets\app.png" />
     <Resource Include="Assets\donate.png" />
   </ItemGroup>
 

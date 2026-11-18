@@ -247,6 +247,9 @@ public static string SettingsPath => Path.Combine(SettingsDirectory, "settings.j
 | R60 | 置顶与关闭两个按钮合并到同一个岛形面板 | 已实现 | `MainWindow.xaml(.cs)` |
 | R61 | 图钉钉入/拔出加入位移、旋转、明暗与光晕动画 | 已实现 | `MainWindow.xaml(.cs)` |
 | R62 | 安装程序改为常规 Windows 五步安装向导 | 已实现 | `src/WBInstaller/Program.cs`、`WBInstaller.csproj` |
+| R63 | 重建安装向导：修复下一步灰显，加入实时校验、分阶段日志与错误详情 | 已实现 | `src/WBInstaller/Program.cs` |
+| R64 | 安装界面改为左侧步骤导航＋右侧内容＋底部状态栏布局 | 已实现 | `src/WBInstaller/Program.cs` |
+| R65 | 重做主题 Logo 并全面应用到窗口、托盘、任务栏、资源管理器、任务管理器与安装程序 | 已实现 | `Assets/app.ico`、`Assets/app.png`、各窗口与项目配置 |
 
 ---
 
@@ -3064,9 +3067,125 @@ private void ShowPage(int page)
 
 **验证**：`dotnet build -c Release` 与 `封装安装包.bat --ci` 通过；生成的 `GuaishushuViewer-v1.5.0-Setup.exe` 为单文件安装程序，运行后按五步向导执行安装。
 
+
+---
+
+### R63 重建安装向导：实时校验、分阶段日志与错误详情
+
+**需求原文摘要**：安装执行到第二步没有任何错误提示，但“下一步”灰不可用；需要彻底检查并重建带实时动态检查功能的安装界面，除进度外还要能判断安装错误信息。
+
+**实现状态**：已实现。
+
+**根因**：R62 的许可页把“我接受许可协议”复选框放在 `y=268`，而内容区实际可用高度只有约 222px，复选框被裁切到可视区域外。用户看不到勾选框，`_next.Enabled = _accept.Checked` 自然永远为 false，且当时没有任何状态文本解释原因。
+
+**实现逻辑**：
+1. 许可页改为在 `y=298` 放置复选框，并把窗体高度从 520 提升到 520 的可用内容区（标题 82 + 底部 62，内容区 376），复选框与协议框完整可见。
+2. 底部新增常驻状态栏：彩色圆点 + 状态文字，分信息/通过/警告/错误四态。许可页未勾选时显示橙色警告“请先阅读并勾选…”；勾选后立即变绿并启用“下一步”。
+3. 目标位置页新增 `ValidateDestination()`：每 900ms 由 `Timer` 实时复查一次，检查空路径、磁盘根目录、目录可创建、探针文件可写、剩余空间 ≥10MB、是否已有安装；结果同时写入页内提示与底部状态栏，并决定“安装”按钮是否可用。
+4. 安装过程改为事件驱动：`InstallCore` 按“创建目录 → 释放主程序 → 注册 ProgID → 注册关联 → 创建快捷方式 → 写入卸载信息”分阶段执行，每阶段通过 `IProgress<InstallEvent>` 上报开始、进度、完成或错误。
+5. 每个阶段由 `Stage()` 包裹 `try/catch`；失败时上报异常类型与消息，进度页保留在失败界面，写入红色“错误详情”文本框，“下一步”变为“重试”，并允许“上一步”返回修改目录，不再静默失败。
+6. 成功后自动进入完成页；完成页启动程序或默认应用确认失败时也会捕获并通过状态栏与消息框报告。
+
+**实现方式**：`src/WBInstaller/Program.cs`。
+
+```csharp
+private static bool Stage(IProgress<InstallEvent> progress, int value, string name, Action action)
+{
+    progress.Report(new InstallEvent(InstallEventKind.Log, value, $"开始：{name}"));
+    try
+    {
+        action();
+        progress.Report(new InstallEvent(InstallEventKind.Progress, value, name));
+        progress.Report(new InstallEvent(InstallEventKind.Log, value, $"完成：{name}"));
+        return true;
+    }
+    catch (Exception ex)
+    {
+        progress.Report(new InstallEvent(InstallEventKind.Error, value,
+            $"{name}失败：{ex.GetType().Name}: {ex.Message}"));
+        return false;
+    }
+}
+```
+
+```csharp
+_checkTimer.Tick += (_, _) => { if (_page == 2 && !_installing) ValidateDestination(); };
+_checkTimer.Start();
+```
+
+**验证**：`dotnet build -c Release` 通过；安装 exe 启动后标题栏正常，许可页复选框位于可视区，未勾选时底部显示橙色警告且下一步禁用，勾选后变绿并启用。安装失败路径会保留在进度页并显示异常详情与“重试”。
+
+---
+
+### R64 安装界面布局重排
+
+**需求原文摘要**：优化安装界面，让布局更合理、美观。
+
+**实现状态**：已实现。
+
+**实现逻辑**：
+1. 窗体尺寸改为 700×520，分为蓝色品牌头（82px）、左右分栏主体与灰色底栏（62px）。
+2. 头部放置 46×46 的新 Logo、产品名、版本与副标题。
+3. 主体左侧 172px 为浅灰步骤导航栏，使用 ①–⑤ 标记五个步骤，当前步骤高亮蓝底蓝字加粗；右侧白色内容区按页绘制标题、提示与控件。
+4. 底部状态栏左侧显示实时状态，右侧依次排列“上一步 / 下一步 / 取消”，尺寸与间距统一。
+5. 进度页把当前步骤、进度条、时间戳日志、红底错误详情框按垂直顺序排列，避免信息重叠。
+6. WinForms 控件统一使用 Microsoft YaHei UI 9F，标题 14F 加粗，颜色使用系统灰蓝体系，保持常规 Windows 安装程序观感。
+
+**实现方式**：`src/WBInstaller/Program.cs` 的 `BuildHeader()`、`BuildBody()`、`BuildFooter()`、`BuildPages()`。
+
+```csharp
+string[] names = { "① 欢迎使用", "② 许可协议", "③ 目标位置", "④ 安装进度", "⑤ 安装完成" };
+for (var i = 0; i < names.Length; i++)
+{
+    var label = new Label { Text = names[i], Location = new Point(0, 26 + i * 54), Size = new Size(172, 42), ... };
+    _stepLabels[i] = label;
+    _side.Controls.Add(label);
+}
+```
+
+**验证**：安装程序实启动，窗口标题为“怪叔叔看图 安装程序”，主窗口句柄正常创建；各页控件坐标均在内容区内，无裁切。
+
+---
+
+### R65 主题 Logo 与全场景应用
+
+**需求原文摘要**：软件 Logo 太丑；希望是与软件名称元素相关、个性主题突出且简洁的形象；并且全面应用到任务栏、状态栏、任务管理器等位置。
+
+**实现状态**：已实现。
+
+**实现逻辑**：
+1. 用纯 Python 标准库（`struct`/`zlib`）栅格化 768×768 超采样画布并降采样，重新设计 Logo：深色圆角底 + 米白照片框 + 戴眼镜眨眼的大叔 + 琥珀色图钉。图钉呼应“置顶”，照片框与人物呼应“怪叔叔看图”，整体在小尺寸仍能辨认。
+2. 输出 `Assets/app.ico`，包含 16/24/32/48/64/128/256 七种尺寸的 PNG 压缩 ICO；同时输出 `Assets/app.png` 供界面内展示。
+3. 查看器：`<ApplicationIcon>` 指定新 ico，Win32 可执行文件图标、资源管理器、任务栏与任务管理器一致；`MainWindow`、`SettingsWindow`、`AboutWindow` 均设置 `Icon="Assets/app.ico"`；关于窗口把原“奇”字占位块换成 `app.png`。
+4. 托盘：`App.LoadTrayIcon()` 继续从 `Assets/app.ico` 资源加载，因此通知区域图标同步更新。
+5. 文件关联与快捷方式：注册表 `DefaultIcon` 与 `.lnk` 的 `IconLocation` 都指向主 exe 的 0 号图标，自动使用新 Logo。
+6. 安装程序：`WBInstaller.csproj` 同时把新 ico 与 png 作为嵌入资源，`ApplicationIcon` 使用新 ico；`InstallWizard.LoadBrandIcons()` 把 ico 设为窗体 `Icon`（任务栏/标题栏），把 png 设为头部 PictureBox。
+
+**实现方式**：`src/WBImageViewer/Assets/app.ico`、`Assets/app.png`、三个 WPF 窗口、`App.xaml.cs`、`WBImageViewer.csproj`、`src/WBInstaller/Program.cs`、`WBInstaller.csproj`。
+
+```xml
+<ApplicationIcon>Assets\app.ico</ApplicationIcon>
+<Resource Include="Assets\app.png" />
+```
+
+```xml
+<EmbeddedResource Include="..\WBImageViewer\Assets\app.ico" LogicalName="AppIcon.ico" />
+<EmbeddedResource Include="..\WBImageViewer\Assets\app.png" LogicalName="AppLogo.png" />
+```
+
+**验证**：新 PNG 已人工目视确认；编译零警告零错误；两个封装脚本 `--ci` 通过，产物版本为 1.6.0；安装程序 exe 启动正常。
+
+
 ---
 
 ## 11. 版本变更记录
+
+### 1.6.0（2026-11-18）
+
+- 修复安装向导许可页“下一步”永久灰显：根因是接受复选框被裁切到内容区外；重建向导并加入底部实时状态栏、目标位置定时校验、分阶段安装日志与错误详情/重试（R63）。
+- 安装界面改为左侧五步导航 + 右侧内容 + 底部状态栏，统一字体、间距与高亮样式（R64）。
+- 重做主题 Logo（照片框 + 眨眼大叔 + 琥珀图钉），生成 7 尺寸 ico 与 PNG，覆盖主窗口、设置/关于、托盘、任务栏、资源管理器、任务管理器、快捷方式、文件关联与安装程序（R65）。
+- 版本号升至 1.6.0，README 与开发档案同步。
 
 ### 1.5.0（2026-11-18）
 
