@@ -62,6 +62,9 @@ public partial class MainWindow : Window
     private List<Point> _draftPoints = new();
     private Point _draftPointer;
     private UIElement? _draftVisual;
+    private int _movingAnnotation = -1;
+    private Point _moveStartImage;
+    private List<Point>? _moveOriginalPoints;
 
     // Hierarchical compass state.
     private static readonly List<CompassNode> CompassTree = BuildCompassTree();
@@ -367,10 +370,9 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Reflect topmost state on the pushpin. Pinned = amber lit, upright, driven
-    /// flush into the panel with a glow. Unpinned = cool grey, tilted and lifted
-    /// out of the panel with the glow switched off. The transform animation makes
-    /// the "driven in / pulled out" motion explicit, not just a colour change.
+    /// Reflect topmost state on the 📌 pushpin. Pinned drives the pin down into the
+    /// panel (top-in); unpinned pulls it out and tilts it (pull-out). The From values
+    /// are the opposite state so every toggle plays the physical motion explicitly.
     /// </summary>
     private void UpdatePinState()
     {
@@ -384,27 +386,22 @@ public partial class MainWindow : Window
         var template = PinButton.Template;
         if (template is null) return;
 
-        var duration = TimeSpan.FromMilliseconds(240);
+        var duration = TimeSpan.FromMilliseconds(260);
+        var ease = new BackEase { Amplitude = 0.32, EasingMode = EasingMode.EaseOut };
         if (template.FindName("PinRotate", PinButton) is RotateTransform rotate)
         {
             rotate.BeginAnimation(RotateTransform.AngleProperty, new DoubleAnimation(
-                pinned ? 0 : -42, duration)
-            {
-                EasingFunction = new BackEase { Amplitude = 0.35, EasingMode = EasingMode.EaseOut }
-            });
+                pinned ? -28 : 0, pinned ? 0 : -28, duration) { EasingFunction = ease });
         }
         if (template.FindName("PinLift", PinButton) is TranslateTransform lift)
         {
             lift.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(
-                pinned ? 0 : -5, duration)
-            {
-                EasingFunction = new BackEase { Amplitude = 0.35, EasingMode = EasingMode.EaseOut }
-            });
+                pinned ? -9 : 0, pinned ? 0 : -9, duration) { EasingFunction = ease });
         }
         if (template.FindName("PinGlyph", PinButton) is UIElement glyph)
         {
             glyph.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(
-                pinned ? 1 : 0.4, duration)
+                pinned ? 0.45 : 1, pinned ? 1 : 0.45, duration)
             {
                 EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut }
             });
@@ -689,6 +686,8 @@ public partial class MainWindow : Window
         base.OnLostMouseCapture(e);
         if (_compassOpen) CloseCompass();
         _annotating = false;
+        _movingAnnotation = -1;
+        _moveOriginalPoints = null;
         ClearDraftVisual();
         _movingWindow = false;
         _panningImage = false;
@@ -701,7 +700,12 @@ public partial class MainWindow : Window
     /// </summary>
     private void SetGrabCursor() => Cursor = Cursors.Hand;
 
-    private void RestoreCursor() => Cursor = Cursors.Arrow;
+    private void RestoreCursor() => Cursor = _annotationTool switch
+    {
+        AnnotationTool.Pointer => Cursors.Arrow,
+        AnnotationTool.Move => Cursors.SizeAll,
+        _ => Cursors.Cross
+    };
 
     private void BeginWindowMove()
     {
@@ -770,7 +774,7 @@ public partial class MainWindow : Window
 
     private enum CompassAction
     {
-        None, Pointer, Line, Wave, DoubleLine, Freehand, Circle,
+        None, Pointer, Move, Line, Wave, DoubleLine, Freehand, Circle,
         EraserFree, EraserClick, EraserBigger, EraserSmaller,
         Size1, Size2, Size3, Size4, Size5,
         SetColor, ColorCycle, ClearAll
@@ -865,6 +869,7 @@ public partial class MainWindow : Window
         CNode("工具", "⚙", "指针、清空与轮换", 168, 156, 96, children: new[]
         {
             CNode("指针", "✥", "返回指针（停止标注）", 82, 116, 168, CompassAction.Pointer),
+            CNode("移动", "✜", "拖动已绘制的标注元素", 92, 176, 210, CompassAction.Move),
             CNode("换色", "◐", "轮换预设颜色", 92, 176, 196, CompassAction.ColorCycle),
             CNode("清空", "✕", "清空全部标注", 208, 88, 88, CompassAction.ClearAll)
         })
@@ -1216,6 +1221,7 @@ public partial class MainWindow : Window
         switch (node.Action)
         {
             case CompassAction.Pointer: SetAnnotationTool(AnnotationTool.Pointer); break;
+            case CompassAction.Move: SetAnnotationTool(AnnotationTool.Move); break;
             case CompassAction.Line: SetAnnotationTool(AnnotationTool.Line); break;
             case CompassAction.Wave: SetAnnotationTool(AnnotationTool.Wave); break;
             case CompassAction.DoubleLine: SetAnnotationTool(AnnotationTool.DoubleLine); break;
@@ -1248,7 +1254,12 @@ public partial class MainWindow : Window
     private void SetAnnotationTool(AnnotationTool tool)
     {
         _annotationTool = tool;
-        Cursor = tool == AnnotationTool.Pointer ? Cursors.Arrow : Cursors.Cross;
+        Cursor = tool switch
+        {
+            AnnotationTool.Pointer => Cursors.Arrow,
+            AnnotationTool.Move => Cursors.SizeAll,
+            _ => Cursors.Cross
+        };
     }
 
     private void ShowToolBadge()
@@ -1262,6 +1273,7 @@ public partial class MainWindow : Window
             AnnotationTool.Circle => $"标注：手绘圈注 · {_annotationSize:0}",
             AnnotationTool.EraserFree => $"标注：自由擦除 · {_eraserSize:0}",
             AnnotationTool.EraserClick => "标注：点击擦除元素",
+            AnnotationTool.Move => "标注：移动元素（拖动已有笔迹）",
             _ => string.Empty
         };
         ToolBadgeText.Text = name;
@@ -1277,6 +1289,23 @@ public partial class MainWindow : Window
             return false;
 
         var point = e.GetPosition(ImageViewport);
+
+        if (_annotationTool == AnnotationTool.Move)
+        {
+            var radius = Math.Max(12, _annotationSize * 2);
+            for (var i = _annotations.Count - 1; i >= 0; i--)
+            {
+                if (!_annotations[i].HitTest(point, ToViewportSpace, radius)) continue;
+                _movingAnnotation = i;
+                _moveStartImage = ToImageSpace(point);
+                _moveOriginalPoints = _annotations[i].Points.ToList();
+                CaptureMouse();
+                e.Handled = true;
+                return true;
+            }
+            return false;
+        }
+
         if (_annotationTool == AnnotationTool.EraserClick)
         {
             EraseAt(point, Math.Max(_eraserSize, 10));
@@ -1295,6 +1324,21 @@ public partial class MainWindow : Window
 
     private bool HandleAnnotationMove(MouseEventArgs e)
     {
+        if (_movingAnnotation >= 0 && _moveOriginalPoints != null)
+        {
+            var current = ToImageSpace(e.GetPosition(ImageViewport));
+            var dx = current.X - _moveStartImage.X;
+            var dy = current.Y - _moveStartImage.Y;
+            var points = _annotations[_movingAnnotation].Points;
+            for (var i = 0; i < points.Count; i++)
+            {
+                points[i] = new Point(_moveOriginalPoints[i].X + dx, _moveOriginalPoints[i].Y + dy);
+            }
+            RedrawAnnotations();
+            e.Handled = true;
+            return true;
+        }
+
         if (!_annotating) return false;
         var point = e.GetPosition(ImageViewport);
         _draftPointer = point;
@@ -1320,6 +1364,15 @@ public partial class MainWindow : Window
 
     private bool HandleAnnotationUp(MouseButtonEventArgs e)
     {
+        if (_movingAnnotation >= 0)
+        {
+            _movingAnnotation = -1;
+            _moveOriginalPoints = null;
+            if (IsMouseCaptured) ReleaseMouseCapture();
+            e.Handled = true;
+            return true;
+        }
+
         if (!_annotating) return false;
         _annotating = false;
         ClearDraftVisual();

@@ -260,40 +260,33 @@
                             <Button.Template>
                                 <ControlTemplate TargetType="Button">
                                     <Grid Background="Transparent">
-                                        <Ellipse x:Name="PinHalo" Width="20" Height="20"
+                                        <Ellipse x:Name="PinHalo" Width="19" Height="19"
                                                  HorizontalAlignment="Center" VerticalAlignment="Center"
-                                                 Fill="#FFFFD166" Opacity="0.55">
+                                                 Fill="#FFFFD166" Opacity="0.42">
                                             <Ellipse.Effect>
                                                 <BlurEffect Radius="6" />
                                             </Ellipse.Effect>
                                         </Ellipse>
-                                        <Grid x:Name="PinGlyph" Width="18" Height="23"
-                                              HorizontalAlignment="Center" VerticalAlignment="Center"
-                                              RenderTransformOrigin="0.5,0.5" Opacity="1">
-                                            <Grid.RenderTransform>
+                                        <TextBlock x:Name="PinGlyph" Text="📌"
+                                                   FontFamily="Segoe UI Emoji, Segoe UI Symbol"
+                                                   FontSize="16" HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center" Margin="0,-1,0,0"
+                                                   RenderTransformOrigin="0.5,0.6" Opacity="1">
+                                            <TextBlock.RenderTransform>
                                                 <TransformGroup>
                                                     <RotateTransform x:Name="PinRotate" Angle="0" />
                                                     <TranslateTransform x:Name="PinLift" Y="0" />
                                                 </TransformGroup>
-                                            </Grid.RenderTransform>
-                                            <Ellipse x:Name="PinHead" Width="10" Height="10"
-                                                     HorizontalAlignment="Center" VerticalAlignment="Top"
-                                                     Fill="#FFFFD166" />
-                                            <Path x:Name="PinNeedle" Data="M 9,9 L 9,21"
-                                                  Stroke="#FFFFD166" StrokeThickness="2.4"
-                                                  StrokeStartLineCap="Round" StrokeEndLineCap="Round"
-                                                  HorizontalAlignment="Center" VerticalAlignment="Top" />
-                                        </Grid>
+                                            </TextBlock.RenderTransform>
+                                        </TextBlock>
                                     </Grid>
                                     <ControlTemplate.Triggers>
                                         <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}" Value="Pinned">
-                                            <Setter TargetName="PinHead" Property="Fill" Value="#FFFFD166" />
-                                            <Setter TargetName="PinNeedle" Property="Stroke" Value="#FFFFD166" />
-                                            <Setter TargetName="PinHalo" Property="Opacity" Value="0.55" />
+                                            <Setter TargetName="PinGlyph" Property="Opacity" Value="1" />
+                                            <Setter TargetName="PinHalo" Property="Opacity" Value="0.42" />
                                         </DataTrigger>
                                         <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}" Value="Unpinned">
-                                            <Setter TargetName="PinHead" Property="Fill" Value="#FF9AA3B2" />
-                                            <Setter TargetName="PinNeedle" Property="Stroke" Value="#FF9AA3B2" />
+                                            <Setter TargetName="PinGlyph" Property="Opacity" Value="0.45" />
                                             <Setter TargetName="PinHalo" Property="Opacity" Value="0" />
                                         </DataTrigger>
                                         <MultiDataTrigger>

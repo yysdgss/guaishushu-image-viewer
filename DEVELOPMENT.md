@@ -3009,6 +3009,8 @@ copy /Y "%INSTALLER_STAGE%\GuaishushuViewerSetup.exe" "%FINAL_EXE%" >nul
 
 **实现方式**：`MainWindow.xaml`、`MainWindow.xaml.cs`。
 
+> 注：以下为 R50 时期的自绘图钉历史片段，外形与动画参数已由 R78（恢复 📌 emoji）取代，保留仅作演进记录。
+
 ```xml
 <Grid x:Name="PinGlyph" RenderTransformOrigin="0.5,0.5">
     <Grid.RenderTransform>
@@ -3357,10 +3359,37 @@ RedrawAnnotations();
 - **指示线**：`OpenCompass()` 最后添加 `_compassGuideHalo`（深色粗底）+ `_compassGuideFlow`（黄青流动的虚线，`ColorAnimation` 黄↔青 + `DoubleAnimation` 虚线偏移 0→-32 循环 + 黄色发光），确保位于所有扇区之上、任意背景醒目；`CloseCompass()` 清理。
 - **配套**：`ShowToolBadge()` 边框色改用当前笔迹颜色（R75）。
 
+### R76 罗盘新增“移动标注元素”工具
+
+- **需求**：标注完成后需要调整笔迹位置，罗盘菜单缺少移动功能。
+- **枚举与菜单**：`AnnotationTool.Move`、`CompassAction.Move` 加入枚举；“工具”分类新增叶子 `CNode("移动", "✜", "拖动已绘制的标注元素", ...)`；`InvokeCompass()` 调用 `SetAnnotationTool(AnnotationTool.Move)`；`ShowToolBadge()` 显示“标注：移动元素（拖动已有笔迹）”；鼠标光标为 `Cursors.SizeAll`。
+- **交互**：`HandleAnnotationDown()` 在 Move 模式下从后往前 `HitTest`（半径 `max(12, 笔宽×2)`），命中则记录 `_movingAnnotation`、`_moveStartImage`（图片归一化坐标）与 `_moveOriginalPoints` 快照并捕获鼠标；未命中则返回 false 让左键继续平移图片。`HandleAnnotationMove()` 用当前归一化坐标减去起点得到位移，逐点写回快照+位移并 `RedrawAnnotations()`，因此缩放、平移、窗口变化后移动依然精确。`HandleAnnotationUp()` 与 `OnLostMouseCapture()` 清理移动状态。`RestoreCursor()` 改为按当前工具恢复光标（移动工具回到 SizeAll）（R76）。
+
+### R77 手绘风格笔迹引擎
+
+- **需求**：按参考图把直线、双线、波浪线与圈注从几何规则线改造为完全模拟手绘的笔触外形。
+- **几何**：`AnnotationStroke` 新增基于笔迹点哈希的稳定 `_seed` 与 `Noise(i)`（仅依赖序号，不依赖坐标），所有抖动在视口空间按 `t` 参数生成，缩放/重绘时形状完全稳定。
+  - 直线 `SketchLine()`：轻微弓形 + 三次低频摆动 + 微抖动，两端各外溢约 1.2%。
+  - 波浪线 `SketchWave()`：两道重叠波浪，振幅随 `t` 漂移，第二道带间距偏移。
+  - 双线 `SketchDouble()`：两道各自轻微波动的平行笔触，间距按笔宽计算，不再是尺规直线。
+  - 圈注 `SketchCircle()`：两道独立闭合环（各自起点/扫掠角不同、圆心轻微漂移、半径多频波动），保留手绘起笔收笔的“过头”痕迹。
+- **渲染**：`CreateVisual()` 对每条中心线生成**可变宽度填充 ribbon**：`CreateSketchStroke()` 按法线左右偏移，宽度 = 笔宽 × 端部收细 × 压力抖动，用 `StreamGeometry` 填充，模拟真实马克笔的粗细变化；所有笔迹（含自由画）统一走该渲染路径（R77）。
+
+### R78 恢复 📌 图钉外形并添加顶入/拔出动画
+
+- **需求**：置顶图钉曾被改成自绘金色圆点+针，用户要求恢复 emoji 📌 外形并加入顶入/拔出动态效果。
+- **实现**：`PinGlyph` 由 `Grid(Ellipse+Path)` 改回 `TextBlock Text="📌" FontFamily="Segoe UI Emoji, Segoe UI Symbol" FontSize="16"`，保留 `PinRotate`/`PinLift` 两个变换；触发器改为控制 `PinGlyph.Opacity`（置顶 1 / 取消 0.45）与光晕透明度。`UpdatePinState()` 的 `DoubleAnimation` 显式给出相反状态的 `From` 值：置顶时从 `Y=-9/Angle=-28` 顶入到 `0/0`，取消时从 `0/0` 拔出到 `-9/-28`，`BackEase` 缓动产生轻微回弹（R78）。
 
 ---
 
 ## 11. 版本变更记录
+
+### 1.9.0（2026-11-18）
+
+- 罗盘“工具”分类新增“移动”功能：可拖动任意已绘制笔迹，位移按图片归一化坐标计算，缩放/平移后仍精确（R76）。
+- 笔迹渲染改造为手绘风格：可变宽度 ribbon 笔触 + 确定性抖动；直线、双线、波浪线、圈注均改为模拟手绘的两道重叠/不规则形态（R77）。
+- 恢复 📌 emoji 图钉外形，加入顶入/拔出回弹动画（R78）。
+- 版本号升至 1.9.0，README 与开发档案同步。
 
 ### 1.8.0（2026-11-18）
 
@@ -3371,6 +3400,8 @@ RedrawAnnotations();
 - 新增全局快捷键冲突检测：占用探测 + `.lnk` 占用者扫描 + 系统保留组合表 + 实时提示（R74）。
 - 标注罗盘重构为分层分组菜单：分类逐级展开/收回、悬停文字提示、三层颜色选择、黄青流动置顶指示线（R75）。
 - 版本号升至 1.8.0，README 与开发档案同步。
+
+### 1.7.0（2026-11-18）
 
 - 修复 1.6.0 单文件无界面/无托盘：图钉悬停条件由 `MultiTrigger` 改为 `MultiDataTrigger`（R66）。
 - 安装主体改用 `TableLayoutPanel` 两列布局，彻底消除左侧步骤区覆盖右侧内容区（R67）。
