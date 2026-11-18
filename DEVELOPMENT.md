@@ -3380,9 +3380,21 @@ RedrawAnnotations();
 - **需求**：置顶图钉曾被改成自绘金色圆点+针，用户要求恢复 emoji 📌 外形并加入顶入/拔出动态效果。
 - **实现**：`PinGlyph` 由 `Grid(Ellipse+Path)` 改回 `TextBlock Text="📌" FontFamily="Segoe UI Emoji, Segoe UI Symbol" FontSize="16"`，保留 `PinRotate`/`PinLift` 两个变换；触发器改为控制 `PinGlyph.Opacity`（置顶 1 / 取消 0.45）与光晕透明度。`UpdatePinState()` 的 `DoubleAnimation` 显式给出相反状态的 `From` 值：置顶时从 `Y=-9/Angle=-28` 顶入到 `0/0`，取消时从 `0/0` 拔出到 `-9/-28`，`BackEase` 缓动产生轻微回弹（R78）。
 
+### R79 全场景更换龙形 G 品牌 Logo
+
+- **需求**：以用户提供的龙形 G 图片形状作为软件新 Logo，替换所有场景中的旧 Logo（照片框＋眨眼大叔＋琥珀图钉）。
+- **素材处理**：对用户图片执行 `matting` 抠图得到透明背景前景（龙首、朱红祥云、米色回纹、鳞片完整保留，白底与投影去除）；按 alpha 边界框裁成正方形并留 16% 边距，LANCZOS 缩放到 256×256。
+- **资源**：覆盖 `src/WBImageViewer/Assets/app.png`（256×256 RGBA 透明 PNG）与 `Assets/app.ico`（16/24/32/48/64/128/256 七尺寸）。由于主窗口、设置/关于窗口、托盘、任务栏、资源管理器关联、快捷方式与安装程序统一引用这两个资源，替换后全场景同步生效（R79）。
+- **配套**：`AboutWindow.xaml` 中承载 Logo 的底板由深色 `#101216` 改为浅灰 `#F1F3F5`，避免墨绿龙身在深色底上对比不足；README「Logo 与品牌」章节同步新描述。
+
 ---
 
 ## 11. 版本变更记录
+
+### 2.0.0（2026-11-18）
+
+- 全场景更换品牌 Logo 为龙形 G（墨绿龙首、朱红祥云、米色回纹、透明背景），覆盖多尺寸 ICO 与 PNG，主窗口/托盘/任务栏/资源管理器/关于/安装程序统一生效（R79）。
+- 版本号升至 2.0.0，README 与开发档案同步。
 
 ### 1.9.0（2026-11-18）
 
