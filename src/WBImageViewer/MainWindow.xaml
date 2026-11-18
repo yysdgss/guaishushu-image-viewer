@@ -205,86 +205,123 @@
             </StackPanel>
         </Border>
 
-        <!-- Top-right slide-out strip: pushpin (topmost) + close. Both slide down until
-             their top edges are flush with the window top, and both frames are drawn
-             with the island outline: tangent top, mirrored concave shoulders, rounded bottom. -->
-        <Grid x:Name="CloseHost" Width="58" Height="28" HorizontalAlignment="Right"
+        <!-- Top-right slide-out panel. One island-shaped surface carries both
+             actions; the pushpin and close are two buttons hosted on that panel. -->
+        <Grid x:Name="CloseHost" Width="62" Height="30" HorizontalAlignment="Right"
               VerticalAlignment="Top" Background="Transparent" ClipToBounds="True">
-            <StackPanel x:Name="CloseStrip" Orientation="Horizontal" HorizontalAlignment="Right"
-                        VerticalAlignment="Top">
-                <StackPanel.RenderTransform>
-                    <TranslateTransform x:Name="CloseTransform" Y="-30" />
-                </StackPanel.RenderTransform>
+            <Grid x:Name="CloseStrip" HorizontalAlignment="Right" VerticalAlignment="Top">
+                <Grid.RenderTransform>
+                    <TranslateTransform x:Name="CloseTransform" Y="-32" />
+                </Grid.RenderTransform>
 
-                <Button x:Name="PinButton" Width="30" Height="28" Margin="0,0,2,0"
-                        Focusable="False" Cursor="Hand" Click="PinButton_Click"
-                        Tag="Pinned" ToolTip="取消置顶 (Shift+Ctrl+Alt+T)">
-                    <Button.Template>
-                        <ControlTemplate TargetType="Button">
-                            <Grid>
-                                <Path x:Name="PinShape" Stretch="Fill"
-                                      Data="M 2,0 H 28 C 26.2,0 24,1.8 24,4 V 20 C 24,23.3 21.3,26 18,26 H 12 C 8.7,26 6,23.3 6,20 V 4 C 6,1.8 3.8,0 2,0 Z"
-                                      Fill="#FFD99A2B" Stroke="#55FFFFFF" StrokeThickness="0.8" />
-                                <TextBlock x:Name="PinGlyph" Text="📌"
-                                           FontFamily="Segoe UI Emoji, Segoe UI Symbol"
-                                           FontSize="15" HorizontalAlignment="Center"
-                                           VerticalAlignment="Center" Margin="0,-1,0,0"
-                                           RenderTransformOrigin="0.5,0.5">
-                                    <TextBlock.RenderTransform>
-                                        <RotateTransform Angle="0" />
-                                    </TextBlock.RenderTransform>
-                                </TextBlock>
-                            </Grid>
-                            <ControlTemplate.Triggers>
-                                <!-- Tag carries the topmost state; pinned is bright and driven
-                                     straight down, unpinned dims and tilts like a pulled pin. -->
-                                <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}" Value="Pinned">
-                                    <Setter TargetName="PinShape" Property="Fill" Value="#FFD99A2B" />
-                                    <Setter TargetName="PinGlyph" Property="Opacity" Value="1" />
-                                    <Setter TargetName="PinGlyph" Property="RenderTransform">
-                                        <Setter.Value><RotateTransform Angle="0" /></Setter.Value>
-                                    </Setter>
-                                </DataTrigger>
-                                <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}" Value="Unpinned">
-                                    <Setter TargetName="PinShape" Property="Fill" Value="#CC242830" />
-                                    <Setter TargetName="PinGlyph" Property="Opacity" Value="0.42" />
-                                    <Setter TargetName="PinGlyph" Property="RenderTransform">
-                                        <Setter.Value><RotateTransform Angle="35" /></Setter.Value>
-                                    </Setter>
-                                </DataTrigger>
-                                <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter TargetName="PinShape" Property="Fill" Value="#FF3A4250" />
-                                </Trigger>
-                                <Trigger Property="IsPressed" Value="True">
-                                    <Setter TargetName="PinShape" Property="Fill" Value="#FF4C5668" />
-                                </Trigger>
-                            </ControlTemplate.Triggers>
-                        </ControlTemplate>
-                    </Button.Template>
-                </Button>
+                <Grid x:Name="ActionPanel" Width="62" Height="30">
+                    <Path x:Name="ActionPanelShape" Stretch="Fill"
+                          Data="M 2,0 H 60 C 58.2,0 56,1.8 56,4 V 22 C 56,26.4 52.4,30 48,30 H 14 C 9.6,30 6,26.4 6,22 V 4 C 6,1.8 3.8,0 2,0 Z"
+                          Stroke="#66FFFFFF" StrokeThickness="0.8">
+                        <Path.Style>
+                            <Style TargetType="Path">
+                                <Setter Property="Fill" Value="#CC242830" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Tag, ElementName=PinButton}" Value="Pinned">
+                                        <Setter Property="Fill" Value="#FF8A5A12" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Path.Style>
+                        <Path.Effect>
+                            <DropShadowEffect Color="#000000" Opacity="0.38" BlurRadius="8" ShadowDepth="2" />
+                        </Path.Effect>
+                    </Path>
 
-                <Button x:Name="CloseButton" Width="28" Height="28" Margin="0"
-                        Content="×" FontSize="17" Foreground="#FFE8EAED"
-                        Focusable="False" Cursor="Hand" Click="CloseButton_Click"
-                        ToolTip="关闭窗口">
-                    <Button.Template>
-                        <ControlTemplate TargetType="Button">
-                            <Grid>
-                                <Path x:Name="CloseShape" Stretch="Fill"
-                                      Data="M 2,0 H 26 C 24.2,0 22,1.8 22,4 V 20 C 22,23.3 19.3,26 16,26 H 12 C 8.7,26 6,23.3 6,20 V 4 C 6,1.8 3.8,0 2,0 Z"
-                                      Fill="#CCB42B2B" Stroke="#55FFFFFF" StrokeThickness="0.8" />
-                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
-                                                  Margin="0,-1,0,0" />
-                            </Grid>
-                            <ControlTemplate.Triggers>
-                                <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter TargetName="CloseShape" Property="Fill" Value="#FFE04B4B" />
-                                </Trigger>
-                            </ControlTemplate.Triggers>
-                        </ControlTemplate>
-                    </Button.Template>
-                </Button>
-            </StackPanel>
+                    <Grid Margin="2,0,2,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="31" />
+                            <ColumnDefinition Width="27" />
+                        </Grid.ColumnDefinitions>
+                        <Rectangle Grid.Column="1" Width="1" Margin="0,6,0,6"
+                                   HorizontalAlignment="Left" Fill="#33FFFFFF" />
+
+                        <Button x:Name="PinButton" Grid.Column="0" Width="31" Height="30"
+                                Focusable="False" Cursor="Hand" Click="PinButton_Click"
+                                Tag="Pinned" ToolTip="取消置顶 (Shift+Ctrl+Alt+T)">
+                            <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <Grid Background="Transparent">
+                                        <Ellipse x:Name="PinHalo" Width="20" Height="20"
+                                                 HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                 Fill="#FFFFD166" Opacity="0.55">
+                                            <Ellipse.Effect>
+                                                <BlurEffect Radius="6" />
+                                            </Ellipse.Effect>
+                                        </Ellipse>
+                                        <Grid x:Name="PinGlyph" Width="18" Height="23"
+                                              HorizontalAlignment="Center" VerticalAlignment="Center"
+                                              RenderTransformOrigin="0.5,0.5" Opacity="1">
+                                            <Grid.RenderTransform>
+                                                <TransformGroup>
+                                                    <RotateTransform x:Name="PinRotate" Angle="0" />
+                                                    <TranslateTransform x:Name="PinLift" Y="0" />
+                                                </TransformGroup>
+                                            </Grid.RenderTransform>
+                                            <Ellipse x:Name="PinHead" Width="10" Height="10"
+                                                     HorizontalAlignment="Center" VerticalAlignment="Top"
+                                                     Fill="#FFFFD166" />
+                                            <Path x:Name="PinNeedle" Data="M 9,9 L 9,21"
+                                                  Stroke="#FFFFD166" StrokeThickness="2.4"
+                                                  StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                                                  HorizontalAlignment="Center" VerticalAlignment="Top" />
+                                        </Grid>
+                                    </Grid>
+                                    <ControlTemplate.Triggers>
+                                        <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}" Value="Pinned">
+                                            <Setter TargetName="PinHead" Property="Fill" Value="#FFFFD166" />
+                                            <Setter TargetName="PinNeedle" Property="Stroke" Value="#FFFFD166" />
+                                            <Setter TargetName="PinHalo" Property="Opacity" Value="0.55" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}" Value="Unpinned">
+                                            <Setter TargetName="PinHead" Property="Fill" Value="#FF9AA3B2" />
+                                            <Setter TargetName="PinNeedle" Property="Stroke" Value="#FF9AA3B2" />
+                                            <Setter TargetName="PinHalo" Property="Opacity" Value="0" />
+                                        </DataTrigger>
+                                        <MultiTrigger>
+                                            <MultiTrigger.Conditions>
+                                                <Condition Property="IsMouseOver" Value="True" />
+                                                <Condition Binding="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}" Value="Pinned" />
+                                            </MultiTrigger.Conditions>
+                                            <Setter TargetName="PinHalo" Property="Opacity" Value="0.85" />
+                                        </MultiTrigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Button.Template>
+                        </Button>
+
+                        <Button x:Name="CloseButton" Grid.Column="1" Width="27" Height="30"
+                                Focusable="False" Cursor="Hand" Click="CloseButton_Click"
+                                ToolTip="关闭窗口">
+                            <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <Grid Background="Transparent">
+                                        <Rectangle x:Name="CloseHover" RadiusX="5" RadiusY="5"
+                                                   Fill="#00FFFFFF" />
+                                        <TextBlock x:Name="CloseGlyph" Text="×" FontSize="18"
+                                                   Foreground="#FFE8EAED" HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center" Margin="0,-1,0,0" />
+                                    </Grid>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="CloseHover" Property="Fill" Value="#44FFFFFF" />
+                                            <Setter TargetName="CloseGlyph" Property="Foreground" Value="#FFFFFFFF" />
+                                        </Trigger>
+                                        <Trigger Property="IsPressed" Value="True">
+                                            <Setter TargetName="CloseHover" Property="Fill" Value="#66FFFFFF" />
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Button.Template>
+                        </Button>
+                    </Grid>
+                </Grid>
+            </Grid>
         </Grid>
     </Grid>
 </Window>

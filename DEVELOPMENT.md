@@ -243,6 +243,10 @@ public static string SettingsPath => Path.Combine(SettingsDirectory, "settings.j
 | R56 | 置顶/关闭按钮顶部齐平窗口，外框用灵动岛方式构建 | 已实现 | `MainWindow.xaml(.cs)` |
 | R57 | 生成常规 Windows exe 安装程序并安装为默认打开候选 | 已实现 | `src/WBInstaller/`、`封装安装包.bat` |
 | R58 | 扩展图片格式并用系统缩略图支持流程图/脑图 | 已实现 | `SupportedFormats.cs`、`ShellPreviewService.cs` |
+| R59 | 单文件封装只产出一个名称+版本号 exe，安装包封装只产出 exe 安装程序 | 已实现 | 两个封装 bat |
+| R60 | 置顶与关闭两个按钮合并到同一个岛形面板 | 已实现 | `MainWindow.xaml(.cs)` |
+| R61 | 图钉钉入/拔出加入位移、旋转、明暗与光晕动画 | 已实现 | `MainWindow.xaml(.cs)` |
+| R62 | 安装程序改为常规 Windows 五步安装向导 | 已实现 | `src/WBInstaller/Program.cs`、`WBInstaller.csproj` |
 
 ---
 
@@ -2909,9 +2913,168 @@ if (hr != 0 || bitmap == IntPtr.Zero)
 
 **验证**：`dotnet build -c Release` 通过；WIC 支持的格式走原生路径，SVG/PDF/XMind/draw.io/Visio 等走 Shell 缩略图路径，无第三方依赖。
 
+
+---
+
+### R59 封装产物收敛：单文件一个 exe，安装包一个 exe
+
+**需求原文摘要**：为什么执行“封装单文件运行包.bat”后会生成 `GuaishushuViewer.exe` 和 `GuaishushuViewer-v1.3.0.exe` 两个文件？正确方式是只生成一个软件名称加版本号的 exe；安装包批处理只封装产出安装包。
+
+**实现状态**：已实现。
+
+**实现逻辑**：
+1. 单文件脚本先把 `dotnet publish` 输出到临时暂存目录 `artifacts/single-stage/`，再把 `GuaishushuViewer.exe` 复制为 `artifacts/single/GuaishushuViewer-v<Version>.exe`，最后删除暂存目录。输出目录每次先整体删除重建，因此不可能残留不带版本号的副本。
+2. 安装包脚本删除 ZIP 兼容输出与固定名称副本：`artifacts/setup/` 每次重建后只复制 `GuaishushuViewer-v<Version>-Setup.exe`。主程序仍临时发布到 `artifacts/setup-stage/` 供安装程序内嵌，安装程序发布到 `artifacts/installer-stage/`，两者在脚本结束前删除。
+3. 两个脚本仍是固定代码，不写死版本号；版本号继续从 `src/WBImageViewer/WBImageViewer.csproj` 的 `<Version>` 读取。
+4. `packaging/install.cmd` 作为源码保留，但不再由“封装安装包.bat”产出到 `artifacts/`。
+
+**实现方式**：`封装单文件运行包.bat`、`封装安装包.bat`。
+
+```bat
+set "STAGE=%BUILD%\single-stage"
+set "OUT=%BUILD%\single"
+if exist "%STAGE%" rd /s /q "%STAGE%"
+if exist "%OUT%" rd /s /q "%OUT%"
+dotnet publish "%PROJ%" -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -p:DebugType=None -o "%STAGE%"
+copy /Y "%STAGE%\GuaishushuViewer.exe" "%OUT%\GuaishushuViewer-v%VERSION%.exe" >nul
+if exist "%STAGE%" rd /s /q "%STAGE%"
+```
+
+```bat
+rem 安装包脚本只保留这一行产物复制，不再生成 ZIP 或固定名称副本。
+copy /Y "%INSTALLER_STAGE%\GuaishushuViewerSetup.exe" "%FINAL_EXE%" >nul
+```
+
+**验证**：两个 bat 均以 `--ci` 实跑通过。`artifacts/` 下只有 `single/GuaishushuViewer-v1.5.0.exe` 与 `setup/GuaishushuViewer-v1.5.0-Setup.exe`；两个 exe 的 `ProductVersion` 均为 `1.5.0`。
+
+---
+
+### R60 置顶与关闭合并到同一个岛形面板
+
+**需求原文摘要**：置顶和关闭两个按钮要放在同一个面板上，在这个面板上放置着两个按钮。
+
+**实现状态**：已实现。
+
+**实现逻辑**：
+1. 旧的 `CloseStrip` 是 `StackPanel`，两个 `Button` 各自携带一个 `Path` 外框，视觉上是两个独立小岛。
+2. 新结构为 `CloseHost → CloseStrip → ActionPanel`：`ActionPanel` 只有一个 `Path` 外框，沿用灵动岛构造法（顶边相切、左右凹肩镜像、底部圆角收口），62×30。
+3. `ActionPanel` 内部用两列 `Grid` 放置 `PinButton`（31 宽）与 `CloseButton`（27 宽），中间一条 1px 半透明分隔线；两个按钮本身用透明模板，不再各自画外框。
+4. 悬停展开仍由 `CloseHost.MouseEnter/MouseLeave` 驱动 `CloseTransform`，展开目标 `Y=0`、收起 `Y=-32`。
+
+**实现方式**：`MainWindow.xaml`、`MainWindow.xaml.cs`。
+
+```xml
+<Grid x:Name="ActionPanel" Width="62" Height="30">
+    <Path x:Name="ActionPanelShape" Stretch="Fill"
+          Data="M 2,0 H 60 C 58.2,0 56,1.8 56,4 V 22 C 56,26.4 52.4,30 48,30 H 14 C 9.6,30 6,26.4 6,22 V 4 C 6,1.8 3.8,0 2,0 Z"
+          Stroke="#66FFFFFF" StrokeThickness="0.8" />
+    <Grid Margin="2,0,2,0">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="31" />
+            <ColumnDefinition Width="27" />
+        </Grid.ColumnDefinitions>
+        <Button x:Name="PinButton" Grid.Column="0" ... />
+        <Button x:Name="CloseButton" Grid.Column="1" ... />
+    </Grid>
+</Grid>
+```
+
+**验证**：`dotnet build -c Release` 零错误零警告；展开时两块按钮共用一块连续底板，顶边仍与窗口顶边齐平。
+
+---
+
+### R61 图钉钉入/拔出的动态效果
+
+**需求原文摘要**：优化置顶按钮的动态效果，要明显体现激活置顶时图钉为钉入状态、退出置顶时图钉为拔出状态。
+
+**实现状态**：已实现。
+
+**实现逻辑**：
+1. 图钉不再使用 Emoji，改为矢量图形：上半部 `Ellipse` 为钉帽，下半部 `Path` 为钉针，颜色可独立动画。
+2. `PinGlyph` 的 `RenderTransform` 用 `TransformGroup` 组合 `RotateTransform Angle` 与 `TranslateTransform Y`；`UpdatePinState()` 根据 `Topmost` 启动 `DoubleAnimation`：
+   - 钉入（置顶）：角度 0°、Y=0、不透明度 1、光晕 0.55、琥珀色、底板变暖色。
+   - 拔出（取消置顶）：角度 -42°、Y=-5、不透明度 0.4、光晕 0、冷灰色、底板回暗色。
+3. 角度与位移使用 `BackEase`（`Amplitude=0.35`）产生轻微过冲，模拟按压/拔起的弹性；不透明度使用 `QuadraticEase`。
+4. 面板底色的冷暖切换由 `ActionPanelShape.Style` 中的 `DataTrigger` 绑定 `PinButton.Tag` 实现；图钉颜色的冷暖切换由按钮模板内的 `DataTrigger` 实现；动画只负责位姿与透明度，互不覆盖。
+5. 快捷键、按钮点击、托盘菜单都走 `ExecuteHotkey(ToggleTopMost)`，状态源仍是唯一的 `Topmost`。
+
+**实现方式**：`MainWindow.xaml`、`MainWindow.xaml.cs`。
+
+```xml
+<Grid x:Name="PinGlyph" RenderTransformOrigin="0.5,0.5">
+    <Grid.RenderTransform>
+        <TransformGroup>
+            <RotateTransform x:Name="PinRotate" Angle="0" />
+            <TranslateTransform x:Name="PinLift" Y="0" />
+        </TransformGroup>
+    </Grid.RenderTransform>
+    <Ellipse x:Name="PinHead" Width="10" Height="10" Fill="#FFFFD166" />
+    <Path x:Name="PinNeedle" Data="M 9,9 L 9,21" Stroke="#FFFFD166" StrokeThickness="2.4" />
+</Grid>
+```
+
+```csharp
+rotate.BeginAnimation(RotateTransform.AngleProperty, new DoubleAnimation(
+    pinned ? 0 : -42, duration)
+{
+    EasingFunction = new BackEase { Amplitude = 0.35, EasingMode = EasingMode.EaseOut }
+});
+lift.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(
+    pinned ? 0 : -5, duration)
+{
+    EasingFunction = new BackEase { Amplitude = 0.35, EasingMode = EasingMode.EaseOut }
+});
+glyph.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(
+    pinned ? 1 : 0.4, duration));
+```
+
+**验证**：`dotnet build -c Release` 通过；切换置顶时图钉同时发生旋转、抬起、变暗、光晕消失，取消置顶时反向复位。
+
+---
+
+### R62 常规 Windows 五步安装向导
+
+**需求原文摘要**：安装包执行效果太偏向 AI 大模型风格，希望以普通常规软件安装界面的方式构建安装包和安装过程。
+
+**实现状态**：已实现。
+
+**实现逻辑**：
+1. `src/WBInstaller/Program.cs` 从单页卡片式 `InstallForm` 改为 `InstallWizard`：固定对话框尺寸 540×392，蓝色标题横幅、白色内容区、灰色底部按钮栏，使用系统标准字体与 `SystemColors`。
+2. 安装流程拆成五步：`欢迎使用` → `许可协议` → `选择目标位置` → `正在安装` → `安装完成`。许可页内嵌根目录 `LICENSE`（MIT 全文）并强制勾选“我接受”后才能继续；目录页支持 `FolderBrowserDialog` 修改安装位置；进度页显示阶段标题、说明和进度条；完成页提供“运行程序”和“打开默认应用确认窗口”两个勾选项。
+3. 安装核心逻辑不变：内嵌主程序释放到目标目录、注册 ProgID/OpenWith、创建桌面与开始菜单快捷方式、写入当前用户卸载项、调用 `SHChangeNotify` 刷新 Shell。
+4. `WBInstaller.csproj` 新增 `<EmbeddedResource Include="..\..\LICENSE" LogicalName="LICENSE.txt" />`，安装向导从程序集资源读取许可文本，不依赖外部文件。
+5. 默认路径仍为 `%LOCALAPPDATA%\GuaishushuViewer`，版本号仍从程序集信息版本派生，安装向导标题显示真实版本。
+
+**实现方式**：`src/WBInstaller/Program.cs`、`src/WBInstaller/WBInstaller.csproj`。
+
+```csharp
+private readonly Panel[] _pages = new Panel[5];   // Welcome / License / Destination / Installing / Finished
+private void ShowPage(int page)
+{
+    _page = page;
+    foreach (var item in _pages) item.Visible = false;
+    _pages[page].Visible = true;
+    RefreshButtons();
+}
+```
+
+```xml
+<EmbeddedResource Include="..\..\LICENSE" LogicalName="LICENSE.txt" />
+```
+
+**验证**：`dotnet build -c Release` 与 `封装安装包.bat --ci` 通过；生成的 `GuaishushuViewer-v1.5.0-Setup.exe` 为单文件安装程序，运行后按五步向导执行安装。
+
 ---
 
 ## 11. 版本变更记录
+
+### 1.5.0（2026-11-18）
+
+- 单文件封装只输出 `artifacts/single/GuaishushuViewer-v1.5.0.exe`；安装包封装只输出 `artifacts/setup/GuaishushuViewer-v1.5.0-Setup.exe`，发布暂存目录用后即删（R59）。
+- 置顶与关闭合并到同一块岛形面板：单底板、双按钮、中间分隔线，顶部仍与窗口齐平（R60）。
+- 图钉改为矢量钉帽+钉针，置顶/取消置顶时以 BackEase 动画呈现直立发光的钉入状态与倾斜抬起的拔出状态（R61）。
+- 安装程序改为常规 Windows 五步向导：欢迎、许可协议、目标位置、安装进度、完成；内嵌 MIT 许可全文，支持自定义安装目录与完成后运行/打开默认应用确认（R62）。
+- 版本号升至 1.5.0，README 与开发档案同步。
 
 ### 1.4.0（2026-11-18）
 

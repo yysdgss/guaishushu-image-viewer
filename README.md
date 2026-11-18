@@ -2,13 +2,13 @@
 
 一款面向 Windows 11 的极简无边框参考图查看器：图片置顶、滚轮以鼠标为中心缩放、抓取手势移动窗口，并内置亮度/对比度/饱和度/去噪/锐化调整。
 
-- 当前版本：**1.4.0**
+- 当前版本：**1.5.0**
 - 技术栈：**WPF / .NET 10（Windows）**
 - 许可：**MIT 免费开源**
 
 ## 核心功能
 
-- 无边框面板，顶部灵动岛控制条（顶边相切、左右凹肩镜像、底部圆角）；适配按钮为双层图标：目标层在上（图片→窗口用窗口图标，窗口→图片用图片图标）；右上角悬停展开 📌 置顶与关闭按钮（顶部与窗口齐平、同款岛形外框）
+- 无边框面板，顶部灵动岛控制条（顶边相切、左右凹肩镜像、底部圆角）；适配按钮为双层图标：目标层在上（图片→窗口用窗口图标，窗口→图片用图片图标）；右上角悬停展开同一个岛形面板，面板上承载置顶与关闭两个按钮。置顶时图钉琥珀点亮、直立钉入并发光；取消时图钉变灰、倾斜并抬起拔出
 - 图片画布始终裁切到窗口当前客户区，缩放/平移不会越界或遮挡控件
 - 图片始终置顶；快捷键 `Shift+Ctrl+Alt+T` 切换
 - 滚轮以鼠标位置为中心缩放，窗口尺寸不变
@@ -41,12 +41,11 @@ Windows 缩略图预览：SVG/SVGZ、EMF/WMF、PDF、PSD/AI/EPS，以及 XMind(`
 
 ## 下载
 
-- [单文件运行包（Releases）](../../releases)：`GuaishushuViewer-v1.4.0.exe`
-- [Windows exe 安装程序（推荐）](../../releases)：`GuaishushuViewer-v1.4.0-Setup.exe`
-- [Windows 安装包 ZIP（兼容方式）](../../releases)：`GuaishushuViewer-v1.4.0-Setup.zip`
+- [单文件运行包（Releases）](../../releases)：`GuaishushuViewer-v1.5.0.exe`
+- [Windows 安装程序（推荐）](../../releases)：`GuaishushuViewer-v1.5.0-Setup.exe`
 - 严谨开发档案：[DEVELOPMENT.md](DEVELOPMENT.md)（每项需求均附实现逻辑、方式与当前代码片段）
 
-> 运行 `GuaishushuViewer-Setup.exe` 会像常规软件一样把程序安装到 `%LOCALAPPDATA%\GuaishushuViewer`，创建桌面/开始菜单快捷方式、注册文件关联与卸载项，并打开系统“默认应用”确认窗口。由于 Windows 11 保护用户的默认应用选择，请在弹出窗口中选择“怪叔叔看图”并勾选始终使用。ZIP 包内的 `install.cmd` 是保留的兼容安装方式。
+> 运行 `GuaishushuViewer-v1.5.0-Setup.exe` 会进入常规 Windows 安装向导：欢迎 → 许可协议 → 选择目标位置 → 安装进度 → 完成。它把程序安装到所选目录（默认 `%LOCALAPPDATA%\GuaishushuViewer`），创建桌面/开始菜单快捷方式、注册文件关联与卸载项；完成时可选择运行程序并打开系统“默认应用”确认窗口。由于 Windows 11 保护用户的默认应用选择，请在弹出窗口中选择“怪叔叔看图”并勾选始终使用。
 
 ## 从源码构建
 
@@ -57,7 +56,7 @@ Windows 缩略图预览：SVG/SVGZ、EMF/WMF、PDF、PSD/AI/EPS，以及 XMind(`
 封装安装包.bat
 ```
 
-输出统一位于 `artifacts/`：单文件在 `artifacts/single/`，安装程序与 ZIP 在 `artifacts/setup/`。两个批处理是固定代码，版本号只从 `src/WBImageViewer/WBImageViewer.csproj` 的 `<Version>` 读取；仓库根目录不再残留生成产物。安装程序源码位于 `src/WBInstaller/`，它链接查看器的格式清单，并内嵌发布后的主程序。
+输出统一位于 `artifacts/`：`artifacts/single/` 只有 `GuaishushuViewer-v<版本号>.exe`，`artifacts/setup/` 只有 `GuaishushuViewer-v<版本号>-Setup.exe`。两个批处理是固定代码，版本号只从 `src/WBImageViewer/WBImageViewer.csproj` 的 `<Version>` 读取；发布暂存目录会在脚本结束时自动删除，仓库根目录不再残留生成产物。安装程序源码位于 `src/WBInstaller/`，它链接查看器的格式清单，内嵌 MIT 许可协议与发布后的主程序。
 
 ## 打赏作者
 

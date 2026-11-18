@@ -73,7 +73,7 @@ public partial class MainWindow : Window
         IslandHitArea.MouseEnter += (_, _) => AnimateIsland(true);
         IslandHitArea.MouseLeave += (_, _) => AnimateIsland(false);
         CloseHost.MouseEnter += (_, _) => AnimateCloseButton(0);
-        CloseHost.MouseLeave += (_, _) => AnimateCloseButton(-30);
+        CloseHost.MouseLeave += (_, _) => AnimateCloseButton(-32);
         ImageViewport.SizeChanged += (_, _) => { if (!_fittingWindow) ApplyImagePosition(); };
         UpdatePinState();
         ApplyVisualSettings(App.Settings);
@@ -349,16 +349,48 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Reflect topmost state on the pushpin: pinned is bright and upright (driven in),
-    /// unpinned is dimmed and tilted (pulled out). The visual states live in XAML
-    /// DataTriggers keyed off the button Tag, so hover feedback remains intact.
+    /// Reflect topmost state on the pushpin. Pinned = amber lit, upright, driven
+    /// flush into the panel with a glow. Unpinned = cool grey, tilted and lifted
+    /// out of the panel with the glow switched off. The transform animation makes
+    /// the "driven in / pulled out" motion explicit, not just a colour change.
     /// </summary>
     private void UpdatePinState()
     {
-        PinButton.Tag = Topmost ? "Pinned" : "Unpinned";
-        PinButton.ToolTip = Topmost
+        var pinned = Topmost;
+        PinButton.Tag = pinned ? "Pinned" : "Unpinned";
+        PinButton.ToolTip = pinned
             ? "取消置顶 (Shift+Ctrl+Alt+T)"
             : "置顶窗口 (Shift+Ctrl+Alt+T)";
+
+        PinButton.ApplyTemplate();
+        var template = PinButton.Template;
+        if (template is null) return;
+
+        var duration = TimeSpan.FromMilliseconds(240);
+        if (template.FindName("PinRotate", PinButton) is RotateTransform rotate)
+        {
+            rotate.BeginAnimation(RotateTransform.AngleProperty, new DoubleAnimation(
+                pinned ? 0 : -42, duration)
+            {
+                EasingFunction = new BackEase { Amplitude = 0.35, EasingMode = EasingMode.EaseOut }
+            });
+        }
+        if (template.FindName("PinLift", PinButton) is TranslateTransform lift)
+        {
+            lift.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(
+                pinned ? 0 : -5, duration)
+            {
+                EasingFunction = new BackEase { Amplitude = 0.35, EasingMode = EasingMode.EaseOut }
+            });
+        }
+        if (template.FindName("PinGlyph", PinButton) is UIElement glyph)
+        {
+            glyph.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(
+                pinned ? 1 : 0.4, duration)
+            {
+                EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut }
+            });
+        }
     }
 
     private void CloseButton_Click(object sender, RoutedEventArgs e) => Close();

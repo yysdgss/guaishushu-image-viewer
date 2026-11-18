@@ -15,6 +15,7 @@
   <ItemGroup>
     <!-- One shared format list for viewer, association registration and installer. -->
     <Compile Include="..\WBImageViewer\Models\SupportedFormats.cs" Link="SupportedFormats.cs" />
+    <EmbeddedResource Include="..\..\LICENSE" LogicalName="LICENSE.txt" />
   </ItemGroup>
 
   <ItemGroup>
