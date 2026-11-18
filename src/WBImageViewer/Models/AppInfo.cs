@@ -1,10 +1,20 @@
+using System.Reflection;
+
 namespace WBImageViewer.Models;
 
 /// <summary>Product identity shared by the UI, installer and documentation.</summary>
 public static class AppInfo
 {
-    public const string Name = "该怪叔叔看图";
-    public const string Version = "1.2.0";
+    public const string Name = "怪叔叔看图";
+
+    /// <summary>
+    /// Derived from &lt;Version&gt; in WBImageViewer.csproj, the project's only version
+    /// source. Packaging scripts parse the same element, so UI and build stay in sync.
+    /// </summary>
+    public static string Version { get; } =
+        typeof(AppInfo).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()
+            ?.InformationalVersion.Split('+')[0] ?? "1.0.0";
+
     public const string GitHub = "https://github.com/yysdgss/guaishushu-image-viewer";
 }
 

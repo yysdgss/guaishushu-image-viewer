@@ -10,17 +10,17 @@
     <AssemblyName>GuaishushuViewer</AssemblyName>
     <RootNamespace>WBImageViewer</RootNamespace>
     <ApplicationIcon>Assets\app.ico</ApplicationIcon>
-    <Version>1.2.0</Version>
-    <AssemblyVersion>1.2.0.0</AssemblyVersion>
-    <FileVersion>1.2.0.0</FileVersion>
-    <Product>该怪叔叔看图</Product>
-    <Authors>该怪叔叔</Authors>
+    <!-- Single source of truth for the product version. AppInfo and both packaging
+         scripts read this value; never duplicate it in code or batch files. -->
+    <Version>1.3.0</Version>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+    <Product>怪叔叔看图</Product>
+    <Authors>怪叔叔</Authors>
   </PropertyGroup>
 
   <ItemGroup>
     <Resource Include="Assets\app.ico" />
     <Resource Include="Assets\donate.png" />
-    <Resource Include="Assets\grab.cur" />
   </ItemGroup>
 
 </Project>

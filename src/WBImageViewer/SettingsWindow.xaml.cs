@@ -80,7 +80,7 @@ public partial class SettingsWindow : Window
     private void OpacitySlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
         if (OpacityLabel != null)
-            OpacityLabel.Text = $"面板不透明度 {OpacitySlider.Value:P0}";
+            OpacityLabel.Text = $"面板背景不透明度（图片不受影响） {OpacitySlider.Value:P0}";
     }
 
     private void PickColor_Click(object sender, RoutedEventArgs e)

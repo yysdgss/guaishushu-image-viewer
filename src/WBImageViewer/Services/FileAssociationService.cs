@@ -35,7 +35,7 @@ internal static class FileAssociationService
 
         using (var progId = Registry.CurrentUser.CreateSubKey($@"Software\Classes\{ProgId}"))
         {
-            progId.SetValue(string.Empty, "该怪叔叔看图");
+            progId.SetValue(string.Empty, "怪叔叔看图");
             using var icon = progId.CreateSubKey("DefaultIcon");
             icon.SetValue(string.Empty, $"\"{exe},0\"");
             using var command = progId.CreateSubKey(@"shell\open\command");

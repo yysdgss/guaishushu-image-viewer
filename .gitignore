@@ -1,12 +1,12 @@
+# Build / packaging output. Source lives in src/, packaging/ and the root scripts.
 bin/
 obj/
-dist/
-GuaishushuViewer.exe
-WBImageViewer.exe
-tools/
-.workbuddy/
+artifacts/
 *.user
 .vs/
+.workbuddy/
+tools/
+*.exe
 *.png.bak
 ui-check.png
 hover-check*.png

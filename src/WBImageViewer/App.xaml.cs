@@ -148,8 +148,11 @@ public partial class App : Application
         menu.Items.Add("关于", null, (_, _) => ShowAbout());
         menu.Items.Add("退出", null, (_, _) => Shutdown());
         menu.Items.Add(new ToolStripSeparator());
-        var status = new ToolStripLabel($"{AppInfo.Name}  v{AppInfo.Version}")
+        var status = new ToolStripLabel($"{AppInfo.Name}{Environment.NewLine}v{AppInfo.Version}")
         {
+            AutoSize = false,
+            Size = new System.Drawing.Size(154, 34),
+            TextAlign = System.Drawing.ContentAlignment.MiddleCenter,
             ForeColor = System.Drawing.Color.FromArgb(0x70, 0x75, 0x80),
             Font = new System.Drawing.Font("Segoe UI", 8)
         };
