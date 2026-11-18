@@ -24,6 +24,9 @@ public sealed class HotkeyHost : IDisposable
 
     public event Action<HotkeyAction>? Pressed;
 
+    /// <summary>Hotkey specs that failed to register on the last Reconfigure (conflict or invalid).</summary>
+    public IReadOnlyList<string> FailedRegistrations { get; private set; } = Array.Empty<string>();
+
     public HotkeyHost()
     {
         var parameters = new HwndSourceParameters("WBImageViewer_HotkeyHost", 0, 0)
@@ -39,18 +42,24 @@ public sealed class HotkeyHost : IDisposable
         foreach (var id in _registered.Keys.ToArray())
             Win32.UnregisterHotKey(_source.Handle, id);
         _registered.Clear();
+        var failed = new List<string>();
 
-        Register(1, HotkeyAction.ToggleTopMost, settings.ToggleTopMostHotkey);
-        Register(2, HotkeyAction.FitWindowToImage, settings.FitWindowToImageHotkey);
-        Register(3, HotkeyAction.FitImageToWindow, settings.FitImageToWindowHotkey);
+        TryRegister(1, HotkeyAction.ToggleTopMost, settings.ToggleTopMostHotkey, failed);
+        TryRegister(2, HotkeyAction.FitWindowToImage, settings.FitWindowToImageHotkey, failed);
+        TryRegister(3, HotkeyAction.FitImageToWindow, settings.FitImageToWindowHotkey, failed);
+        FailedRegistrations = failed;
     }
 
-    private void Register(int id, HotkeyAction action, string spec)
+    private void TryRegister(int id, HotkeyAction action, string spec, List<string> failed)
     {
         if (HotkeySpec.TryParse(spec, out var modifiers, out var vk) &&
             Win32.RegisterHotKey(_source.Handle, id, modifiers, vk))
         {
             _registered[id] = action;
+        }
+        else
+        {
+            failed.Add($"{action}: {spec}");
         }
     }
 

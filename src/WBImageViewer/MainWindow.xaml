@@ -169,8 +169,6 @@
                                   Stroke="#FFFFFF" Fill="#F2353537" />
                         </Grid>
                     </Button>
-                    <TextBlock x:Name="IslandClock" Width="34" Text="--:--" FontSize="9"
-                               Foreground="#FFD7DEE8" TextAlignment="Center" VerticalAlignment="Center" />
                     <Button x:Name="AdjustButton" Style="{StaticResource IslandButton}" Width="22" Height="22" FontSize="12" Content="◑"
                             ToolTip="图片调整" Click="AdjustButton_Click" />
                     <Button x:Name="SettingsButton" Style="{StaticResource IslandButton}" Width="22" Height="22" FontSize="12" Content="⚙"

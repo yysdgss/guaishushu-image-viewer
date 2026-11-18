@@ -48,7 +48,10 @@
             </ComboBox>
         </Grid>
 
-        <TextBlock Text="全局快捷键（点击输入框后直接按下组合键，Esc 清空）" FontWeight="SemiBold" Margin="0,0,0,6" />
+        <DockPanel Margin="0,0,0,6">
+            <TextBlock Text="全局快捷键（点击输入框后直接按下组合键，Esc 清空）" FontWeight="SemiBold" VerticalAlignment="Center" />
+            <Button Content="检测快捷键冲突" HorizontalAlignment="Right" Padding="10,3" Click="CheckConflicts_Click" />
+        </DockPanel>
         <Grid Margin="0,0,0,14">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="190" />
@@ -62,13 +65,22 @@
             </Grid.RowDefinitions>
 
             <TextBlock Grid.Row="0" Grid.Column="0" Text="切换置顶显示" VerticalAlignment="Center" />
-            <TextBox x:Name="TopMostBox" Grid.Row="0" Grid.Column="1" Margin="0,0,0,5" />
+            <StackPanel Grid.Row="0" Grid.Column="1" Margin="0,0,0,5">
+                <TextBox x:Name="TopMostBox" />
+                <TextBlock x:Name="TopMostConflict" FontSize="10" Foreground="#FF6B7280" IsHitTestVisible="False" />
+            </StackPanel>
 
             <TextBlock Grid.Row="1" Grid.Column="0" Text="窗口贴合当前图片大小" VerticalAlignment="Center" />
-            <TextBox x:Name="FitWindowBox" Grid.Row="1" Grid.Column="1" Margin="0,0,0,5" />
+            <StackPanel Grid.Row="1" Grid.Column="1" Margin="0,0,0,5">
+                <TextBox x:Name="FitWindowBox" />
+                <TextBlock x:Name="FitWindowConflict" FontSize="10" Foreground="#FF6B7280" IsHitTestVisible="False" />
+            </StackPanel>
 
             <TextBlock Grid.Row="2" Grid.Column="0" Text="图片平铺到当前窗口" VerticalAlignment="Center" />
-            <TextBox x:Name="FitImageBox" Grid.Row="2" Grid.Column="1" Margin="0,0,0,5" />
+            <StackPanel Grid.Row="2" Grid.Column="1" Margin="0,0,0,5">
+                <TextBox x:Name="FitImageBox" />
+                <TextBlock x:Name="FitImageConflict" FontSize="10" Foreground="#FF6B7280" IsHitTestVisible="False" />
+            </StackPanel>
 
             <TextBlock Grid.Row="3" Grid.Column="0" Text="按住修饰键 + 滚轮：窗口随图片一起缩放" VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,0,8,0" />
             <ComboBox x:Name="WheelModifierBox" Grid.Row="3" Grid.Column="1">

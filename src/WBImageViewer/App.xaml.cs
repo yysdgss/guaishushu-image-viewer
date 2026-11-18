@@ -90,6 +90,7 @@ public partial class App : Application
             ImagePipe.Start(OpenFiles);
 
         SetupTray();
+        NotifyHotkeyFailures();
         OpenFiles(files);
 
         if (Current.Windows.Count == 0)
@@ -105,6 +106,26 @@ public partial class App : Application
         }
         Hotkeys?.Dispose();
         base.OnExit(e);
+    }
+
+    private void NotifyHotkeyFailures()
+    {
+        var failed = Hotkeys.FailedRegistrations;
+        if (failed.Count == 0 || _tray is null) return;
+
+        // Resolve the likely owner of each conflicting combo for a useful message.
+        var lines = failed.Select(f =>
+        {
+            var spec = f[(f.IndexOf(':') + 1)..].Trim();
+            var info = HotkeyConflictService.Check(spec, Array.Empty<string>(), ownedByUs: false);
+            return info.State == HotkeyConflictState.Occupied && info.Suspects.Count > 0
+                ? $"{spec} → {string.Join("、", info.Suspects)}"
+                : $"{spec} → {info.Message}";
+        });
+        var detail = string.Join("\n", lines);
+        _tray.ShowBalloonTip(8000, "快捷键冲突",
+            "以下快捷键未能注册，可能与其他软件冲突：\n" + detail + "\n请在后台设置中修改。",
+            System.Windows.Forms.ToolTipIcon.Warning);
     }
 
     private static void OnGlobalHotkey(HotkeyAction action)

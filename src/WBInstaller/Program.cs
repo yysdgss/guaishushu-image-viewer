@@ -36,6 +36,10 @@ internal sealed class InstallWizard : Form
     private readonly string _defaultDestination = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "GuaishushuViewer");
 
+    // Root table gives every band an explicit row, so no docked control can ever
+    // overlay another regardless of the order Controls.Add is called.
+    private readonly TableLayoutPanel _root = new();
+    private readonly Panel _header = new();
     private readonly Panel _body = new();
     private readonly Panel _side = new();
     private readonly Panel _content = new();
@@ -64,6 +68,12 @@ internal sealed class InstallWizard : Form
     };
 
     private readonly CheckBox _runApp = new() { Text = "安装完成后运行 怪叔叔看图(&R)", Checked = true };
+    private readonly Label _finishNote = new()
+    {
+        Location = new Point(24, 206), Size = new Size(478, 28),
+        ForeColor = Color.FromArgb(170, 110, 20), Font = new Font("Microsoft YaHei UI", 9F),
+        Visible = false
+    };
 
     private readonly Button _back = new() { Text = "上一步(&B)", Size = new Size(86, 32) };
     private readonly Button _next = new() { Text = "下一步(&N)", Size = new Size(100, 32) };
@@ -75,6 +85,7 @@ internal sealed class InstallWizard : Form
     private bool _installFailed;
     private bool _destinationValid;
     private string _destination;
+    private string? _associationNote;
 
     public InstallWizard()
     {
@@ -91,6 +102,7 @@ internal sealed class InstallWizard : Form
         Font = new Font("Microsoft YaHei UI", 9F);
 
         LoadBrandIcons();
+        BuildRoot();
         BuildHeader();
         BuildBody();
         BuildFooter();
@@ -126,9 +138,31 @@ internal sealed class InstallWizard : Form
         catch { /* header simply shows text without the logo */ }
     }
 
+    private void BuildRoot()
+    {
+        // Three rows: fixed brand header, flexible page body, fixed button footer.
+        // Every band is docked Fill inside its own cell, so a later dock operation
+        // can never cover an earlier one (the bug behind the hidden page content).
+        _root.Dock = DockStyle.Fill;
+        _root.ColumnCount = 1;
+        _root.RowCount = 3;
+        _root.Margin = Padding.Empty;
+        _root.Padding = Padding.Empty;
+        _root.BackColor = Color.White;
+        _root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+        _root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82F));   // header
+        _root.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));   // body
+        _root.RowStyles.Add(new RowStyle(SizeType.Absolute, 62F));   // footer
+        Controls.Add(_root);
+    }
+
     private void BuildHeader()
     {
-        var header = new Panel { Dock = DockStyle.Top, Height = 82, BackColor = Color.FromArgb(11, 127, 199) };
+        _header.Dock = DockStyle.Fill;
+        _header.BackColor = Color.FromArgb(11, 127, 199);
+        _header.Padding = Padding.Empty;
+        _header.Margin = Padding.Empty;
+
         _logo.Location = new Point(20, 18);
         _logo.Size = new Size(46, 46);
         _logo.BackColor = Color.Transparent;
@@ -143,15 +177,16 @@ internal sealed class InstallWizard : Form
             Text = $"版本 {Version}   ·   无边框置顶图片查看器", Location = new Point(80, 48),
             AutoSize = true, ForeColor = Color.FromArgb(224, 242, 255)
         };
-        header.Controls.AddRange(_logo, title, subtitle);
-        Controls.Add(header);
+        _header.Controls.AddRange(_logo, title, subtitle);
+        _root.Controls.Add(_header, 0, 0);
     }
 
     private void BuildBody()
     {
         _body.Dock = DockStyle.Fill;
         _body.BackColor = Color.White;
-        Controls.Add(_body);
+        _body.Margin = Padding.Empty;
+        _root.Controls.Add(_body, 0, 1);
 
         // Explicit two-column layout: the step list can never overlap the page area.
         var table = new TableLayoutPanel
@@ -217,7 +252,8 @@ internal sealed class InstallWizard : Form
         _next.Click += Next_Click;
         _cancel.Click += (_, _) => { DialogResult = DialogResult.Cancel; Close(); };
         _footer.Controls.AddRange(_statusIcon, _statusText, _back, _next, _cancel);
-        Controls.Add(_footer);
+        _footer.Margin = Padding.Empty;
+        _root.Controls.Add(_footer, 0, 2);
     }
 
     private void BuildPages()
@@ -286,12 +322,12 @@ internal sealed class InstallWizard : Form
         AddTitle(_pages[4], "安装完成");
         AddBody(_pages[4],
             "怪叔叔看图 已成功安装到您的计算机。\n\n" +
-            "安装过程中已自动把常用图片、脑图与流程图格式关联为本程序的默认打开方式，\n" +
+            "已注册常用图片、脑图与流程图格式的文件关联候选，\n" +
             "并在图片右键菜单中加入“用怪叔叔看图打开”。\n\n" +
             "可在“设置 → 应用 → 安装的应用”中卸载本程序。", 54);
         _runApp.Location = new Point(24, 238);
         _runApp.AutoSize = true;
-        _pages[4].Controls.Add(_runApp);
+        _pages[4].Controls.AddRange(_runApp, _finishNote);
 
         foreach (var page in _pages)
         {
@@ -509,6 +545,7 @@ internal sealed class InstallWizard : Form
         if (_page == 3 && _installFailed)
         {
             _installFailed = false;
+            _associationNote = null;
             _errorBox.Text = "无";
             _log.Items.Clear();
             _progress.Value = 0;
@@ -551,6 +588,11 @@ internal sealed class InstallWizard : Form
             _progress.Value = 100;
             _currentStep.Text = "安装已成功完成";
             SetStatus(StatusKind.Ok, "安装完成 · 所有步骤均已通过");
+            if (_associationNote != null)
+            {
+                _finishNote.Text = "注意：" + _associationNote;
+                _finishNote.Visible = true;
+            }
             ShowPage(4);
         }
         else
@@ -580,6 +622,9 @@ internal sealed class InstallWizard : Form
                 _errorBox.Text = item.Message;
                 SetStatus(StatusKind.Error, item.Message);
                 break;
+            case InstallEventKind.Warning:
+                _log.Items.Add($"{DateTime.Now:HH:mm:ss}  ! {item.Message}");
+                break;
             case InstallEventKind.Done:
                 _log.Items.Add($"{DateTime.Now:HH:mm:ss}  √ {item.Message}");
                 break;
@@ -605,13 +650,17 @@ internal sealed class InstallWizard : Form
                 resource.CopyTo(file);
             })) return false;
 
-        if (!Stage(progress, 62, "设为默认打开程序并注入右键菜单", () =>
+        // File association is best-effort. Windows protects each extension's UserChoice
+        // record with a per-user hash, and a single protected/rolled-back format must not
+        // abort the whole installation. ProgID, OpenWithProgids and the Explorer context
+        // menu are still written for every format; only the "default" flag may be skipped.
+        if (!Stage(progress, 62, "注册文件关联与右键菜单", () =>
             {
                 var errors = DefaultAssociationService.ApplyAll(exePath, Extensions);
                 foreach (var error in errors)
-                    progress.Report(new InstallEvent(InstallEventKind.Error, 62, error));
+                    progress.Report(new InstallEvent(InstallEventKind.Warning, 62, error));
                 if (errors.Count > 0)
-                    throw new InvalidOperationException($"{errors.Count} 个格式未能完成默认关联，详情见错误日志。");
+                    _associationNote = $"其中 {errors.Count} 个格式未能设为默认打开方式（程序已完整安装，可在“打开方式”中手动选择）。";
             })) return false;
 
         if (!Stage(progress, 88, "创建快捷方式", () =>
@@ -687,7 +736,7 @@ internal sealed class InstallWizard : Form
 
     private enum StatusKind { Info, Ok, Warn, Error }
 
-    private enum InstallEventKind { Progress, Log, Error, Done }
+    private enum InstallEventKind { Progress, Log, Error, Warning, Done }
 
     private readonly record struct InstallEvent(InstallEventKind Kind, int Value, string Message);
 }

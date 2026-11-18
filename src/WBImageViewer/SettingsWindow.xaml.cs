@@ -17,6 +17,7 @@ public partial class SettingsWindow : Window
     public SettingsWindow()
     {
         InitializeComponent();
+        TopmostCoordinator.Register(this);
 
         var settings = App.Settings;
         SingleWindowBox.IsChecked = settings.SingleWindow;
@@ -36,7 +37,45 @@ public partial class SettingsWindow : Window
 
         foreach (var box in new[] { TopMostBox, FitWindowBox, FitImageBox })
             box.PreviewKeyDown += HotkeyBox_PreviewKeyDown;
+
+        CheckAllConflicts();
     }
+
+    private (TextBox Box, TextBlock Status, string Current)[] HotkeyRows => new[]
+    {
+        (TopMostBox, TopMostConflict, App.Settings.ToggleTopMostHotkey),
+        (FitWindowBox, FitWindowConflict, App.Settings.FitWindowToImageHotkey),
+        (FitImageBox, FitImageConflict, App.Settings.FitImageToWindowHotkey)
+    };
+
+    private void CheckAllConflicts()
+    {
+        var rows = HotkeyRows;
+        foreach (var (box, status, current) in rows)
+        {
+            var spec = box.Text.Trim();
+            if (spec.Length == 0)
+            {
+                status.Text = "未设置";
+                status.Foreground = System.Windows.Media.Brushes.Gray;
+                continue;
+            }
+            var others = rows.Where(r => !ReferenceEquals(r.Box, box))
+                             .Select(r => r.Box.Text.Trim()).Where(s => s.Length > 0).ToList();
+            bool ownedByUs = string.Equals(spec, current, StringComparison.OrdinalIgnoreCase);
+            var result = HotkeyConflictService.Check(spec, others, ownedByUs);
+            status.Text = result.Message;
+            status.Foreground = result.State switch
+            {
+                HotkeyConflictState.Available => System.Windows.Media.Brushes.SeaGreen,
+                HotkeyConflictState.Occupied => System.Windows.Media.Brushes.Firebrick,
+                HotkeyConflictState.Reserved => System.Windows.Media.Brushes.DarkOrange,
+                _ => System.Windows.Media.Brushes.Gray
+            };
+        }
+    }
+
+    private void CheckConflicts_Click(object sender, RoutedEventArgs e) => CheckAllConflicts();
 
     private static void SelectByTag(ComboBox box, string tag)
     {
@@ -54,7 +93,7 @@ public partial class SettingsWindow : Window
 
     private static string? SelectedTag(ComboBox box) => (box.SelectedItem as ComboBoxItem)?.Tag as string;
 
-    private static void HotkeyBox_PreviewKeyDown(object sender, KeyEventArgs e)
+    private void HotkeyBox_PreviewKeyDown(object sender, KeyEventArgs e)
     {
         e.Handled = true;
         var box = (TextBox)sender;
@@ -62,6 +101,7 @@ public partial class SettingsWindow : Window
         if (e.Key == Key.Escape)
         {
             box.Text = string.Empty;
+            CheckAllConflicts();
             return;
         }
 
@@ -77,6 +117,7 @@ public partial class SettingsWindow : Window
         if (Keyboard.Modifiers.HasFlag(ModifierKeys.Alt)) parts.Add("Alt");
         parts.Add(e.Key.ToString());
         box.Text = string.Join("+", parts);
+        CheckAllConflicts();
     }
 
     private void OpacitySlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
@@ -140,6 +181,23 @@ public partial class SettingsWindow : Window
             MessageBox.Show("三个全局快捷键不能重复。", "设置无效",
                 MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
+        }
+
+        // Warn about external conflicts / system-reserved combos, but let the user save:
+        // conflict detection is advisory and Windows may free the combo later.
+        var conflicts = hotkeys
+            .Select((spec, i) => HotkeyConflictService.Check(spec,
+                hotkeys.Where((_, j) => j != i).ToList(),
+                string.Equals(spec, HotkeyRows[i].Current, StringComparison.OrdinalIgnoreCase)))
+            .Where(r => r.State is HotkeyConflictState.Occupied or HotkeyConflictState.Reserved)
+            .ToList();
+        if (conflicts.Count > 0)
+        {
+            var detail = string.Join("\n", conflicts.Select(c => $"· {c.Spec}：{c.Message}"));
+            var answer = MessageBox.Show(
+                "以下快捷键存在冲突，保存后可能无法生效：\n" + detail + "\n\n仍然保存？",
+                "快捷键冲突", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+            if (answer != MessageBoxResult.Yes) return;
         }
 
         if (!double.TryParse(ZoomStepBox.Text.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out var step)

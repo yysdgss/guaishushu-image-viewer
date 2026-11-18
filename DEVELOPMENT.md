@@ -1534,6 +1534,8 @@ _tray = new NotifyIcon
 
 **实现方式**：`MainWindow.xaml`。
 
+> 以下为 R50 时期的历史片段，仅作演化记录；灵动岛现为 200×34、右肩镜像左肩（R54），且**时钟已于 R72 删除**，当前权威代码以 `MainWindow.xaml` 源文件为准。
+
 ```xml
 <Grid x:Name="IslandHitArea"
       Width="232" Height="46"
@@ -3317,12 +3319,58 @@ RedrawAnnotations();
 
 **验证**：编译 0 警告 0 错误；启动后无 XAML 异常；罗盘扇区左右对称覆盖 360°，指示线跟随光标，松手触发；笔迹在 `ApplyImagePosition()` 中随图片重绘。
 
+### R70 安装向导根布局改为三行 TableLayoutPanel（修复顶部 Logo 覆盖内容）
+
+- **问题**：安装进度/错误页右侧内容被顶部蓝色 Logo 区覆盖，文字与进度条不可见。
+- **根因**：`header(Dock.Top)` 先 `Controls.Add`、`body(Dock.Fill)` 后加。WinForms 按 z-order 逆序停靠：后加的 Fill 先占满客户区，先加的 Top 最后停靠并压在 Fill 之上。左栏两列虽已用 TableLayoutPanel，但顶层三块仍是 Dock 混排。
+- **修复**：新增根 `_root = new TableLayoutPanel`（1 列 3 行：Header 绝对 82 / Body 百分比 100 / Footer 绝对 62），`header/body/footer` 全部 `Dock.Fill` 放入各自单元格，`Controls.Add(_root)` 只加一次。任何停靠操作都不可能跨单元格覆盖（R70）。
+- **验证**：编译 0 警告 0 错误；进度页标题、进度条、日志、错误详情均在 Body 行内完整可见。
+
+### R71 安装时文件关联失败不再中止安装
+
+- **问题**：安装日志显示"设为默认打开程序并注入右键菜单失败：InvalidOperationException: 1 个格式未能完成默认关联"，整个安装被判定失败；实际只是个别扩展名的 UserChoice 哈希被 Windows 保护而回滚。
+- **修复**：① 关联阶段改名"注册文件关联与右键菜单"，失败项以 `InstallEventKind.Warning` 写入日志而**不抛异常**；② 新增 `_associationNote`，完成时在完成页显示温和提示；③ 完成页文案改为"注册关联候选"，不再宣称一定成为默认；④ 新增 `Warning` 事件类型；⑤ `SetUserChoice` 对 UserChoice 键"删除失败则改为就地打开写入"兜底，减少受保护键导致的假失败（R71）。
+- **原则**：文件关联是 best-effort，绝不能让单个格式失败回滚整个安装；ProgID/OpenWithProgids/右键菜单对所有格式照常写入。
+
+### R72 灵动岛彻底移除时间显示
+
+- 删除 XAML `IslandClock` TextBlock、C# `_clockTimer`、`UpdateIslandClock()` 方法及构造函数中的定时器初始化。灵动岛只承载工具按钮，不再显示时钟（R72）。
+
+### R73 三窗口协同置顶与激活置顶
+
+- **需求**：主窗口 / 关于 / 后台设置三者共享置顶权；任一被激活时升到三者最上层。
+- **实现**：新增 `Services/TopmostCoordinator.cs`：静态 `Tracked` 列表 + `TopmostEnabled`；`Register()` 设初始 Topmost 并挂 `Activated → Raise()`、`Closed → 移除`；`SetTopmost(bool)` 一次切换全部；`Raise()` 用 `SetWindowPos(hwnd, HWND_TOPMOST/NONE, SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE)` 把激活窗口插入 z-order 顶部（关闭置顶时用 `IntPtr.Zero` 即 HWND_TOP）。Win32 新增 `HWND_TOPMOST/HWND_NOTOPMOST` 与 `SWP_NOMOVE` 常量。三窗口构造函数均 `Register(this)`；主窗口置顶快捷键改走 `TopmostCoordinator.SetTopmost()`，图钉状态随之同步（R73）。
+- **注意**：不在设置/关于窗口上再写 `Topmost=True` 硬编码，统一由协调器管理，避免状态不一致。
+
+### R74 全局快捷键冲突检测
+
+- **需求**：快捷键与其他软件冲突时无任何提示；希望知道被谁占用。
+- **实现**：新增 `Services/HotkeyConflictService.cs`。Windows 无公开 API 查询热键所有者，采用三层检测：① 在专用 message-only HWND 上尝试 `RegisterHotKey`，失败且 `GetLastWin32Error()==1409` 判定为被占用；② 遍历开始菜单/桌面 `.lnk`（`WScript.Shell.Hotkey`）匹配已分配快捷键，给出占用程序名与路径；③ `ReservedCombos` 表列出系统保留组合（任务管理器/安全选项/任务切换等）。结果含状态与疑似占用者。设置页每个快捷键框下方实时显示冲突状态，新增"检测快捷键冲突"按钮，保存时对占用/保留项弹窗确认（不强制阻止）。`HotkeyHost` 新增 `FailedRegistrations`，`App` 启动后托盘气泡提示未能注册的快捷键及疑似占用者（R74）。
+- **说明**：若无法从 `.lnk` 找到占用者，明确提示"Windows 不公开占用者名称"，不臆测。
+
+### R75 标注罗盘重构：分层分组菜单 + 文字提示 + 动态指示线
+
+- **需求**：旧 12 扇区平铺罗盘不美观、无文字提示；希望内外多层、按分类逐级展开/收回；跟随线要动态、位于罗盘上层且任意背景下醒目。
+- **数据模型**：`CompassNode`（Label/Glyph/Description/Accent/Action/TargetColor/Children）构成树。内层 5 分类：形状、颜色、橡皮、粗细、工具；"颜色"下再分暖/冷/自然/中性 4 色系，每个色系 3 个具体颜色 —— 形成 3 层（分类 → 色系 → 颜色）。橡皮/粗细/工具为 2 层叶子。
+- **交互**：`CompassRingInner/Outer` 四组半径；`UpdateCompass()` 按指针距离定 `activeRing`，`maxRing = activeRing+1` 逐层预览（悬停分类即展开子菜单，移回中心圆收回全部）；`HandleCompassUp()` 只对当前环高亮的叶子触发动作，避免误触预览层。
+- **视觉**：`RebuildCompass()` 按当前路径重建扇区 Path（高亮加亮+白色描边）、分类层同时印出名称文字；`AddCompassText()` 统一绘制。悬停时 `Border+TextBlock` 提示框显示"名称 — 说明"。
+- **指示线**：`OpenCompass()` 最后添加 `_compassGuideHalo`（深色粗底）+ `_compassGuideFlow`（黄青流动的虚线，`ColorAnimation` 黄↔青 + `DoubleAnimation` 虚线偏移 0→-32 循环 + 黄色发光），确保位于所有扇区之上、任意背景醒目；`CloseCompass()` 清理。
+- **配套**：`ShowToolBadge()` 边框色改用当前笔迹颜色（R75）。
+
 
 ---
 
 ## 11. 版本变更记录
 
-### 1.7.0（2026-11-18）
+### 1.8.0（2026-11-18）
+
+- 修复安装向导顶部 Logo 区覆盖右侧内容：根布局改三行 `TableLayoutPanel`（R70）。
+- 安装时个别格式默认关联失败不再中止安装，改为警告并提示；`SetUserChoice` 增加就地写入兜底（R71）。
+- 灵动岛彻底删除时间显示（R72）。
+- 主窗口 / 关于 / 设置三窗口协同置顶，激活者升到最上层（R73）。
+- 新增全局快捷键冲突检测：占用探测 + `.lnk` 占用者扫描 + 系统保留组合表 + 实时提示（R74）。
+- 标注罗盘重构为分层分组菜单：分类逐级展开/收回、悬停文字提示、三层颜色选择、黄青流动置顶指示线（R75）。
+- 版本号升至 1.8.0，README 与开发档案同步。
 
 - 修复 1.6.0 单文件无界面/无托盘：图钉悬停条件由 `MultiTrigger` 改为 `MultiDataTrigger`（R66）。
 - 安装主体改用 `TableLayoutPanel` 两列布局，彻底消除左侧步骤区覆盖右侧内容区（R67）。

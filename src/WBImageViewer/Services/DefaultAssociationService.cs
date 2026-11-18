@@ -138,29 +138,42 @@ internal static class DefaultAssociationService
             var normalized = extension.StartsWith('.') ? extension.ToLowerInvariant() : "." + extension.ToLowerInvariant();
             var path = $@"Software\Microsoft\Windows\CurrentVersion\Explorer\FileExts\{normalized}\UserChoice";
 
-            Registry.CurrentUser.DeleteSubKey(path, false);
-            using var key = Registry.CurrentUser.CreateSubKey(path);
+            // Prefer a clean recreate so LastWriteTime reflects "now". If Windows
+            // protects an existing UserChoice key (denies delete), fall back to
+            // opening it in place and overwriting ProgId/Hash instead of failing.
+            RegistryKey? key;
+            try
+            {
+                Registry.CurrentUser.DeleteSubKey(path, false);
+                key = Registry.CurrentUser.CreateSubKey(path);
+            }
+            catch
+            {
+                key = Registry.CurrentUser.OpenSubKey(path, true);
+            }
             if (key is null) return false;
+            using (key)
+            {
+                var handle = key.Handle.DangerousGetHandle();
+                if (RegQueryInfoKey(handle, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero,
+                        IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero,
+                        IntPtr.Zero, out var lastWrite) != 0)
+                    return false;
 
-            var handle = key.Handle.DangerousGetHandle();
-            if (RegQueryInfoKey(handle, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero,
-                    IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero,
-                    IntPtr.Zero, out var lastWrite) != 0)
-                return false;
+                var time = DateTime.FromFileTime(lastWrite);
+                time = time.AddTicks(-(time.Ticks % 600000000)); // shell clamps to the minute
+                var regDate = time.ToFileTime().ToString("x16");
+                var sid = WindowsIdentity.GetCurrent().User?.Value ?? string.Empty;
 
-            var time = DateTime.FromFileTime(lastWrite);
-            time = time.AddTicks(-(time.Ticks % 600000000)); // shell clamps to the minute
-            var regDate = time.ToFileTime().ToString("x16");
-            var sid = WindowsIdentity.GetCurrent().User?.Value ?? string.Empty;
+                var source = (normalized + sid + progId + regDate + Experience + "\0").ToLowerInvariant();
+                var bytes = Encoding.Unicode.GetBytes(source);
+                var md5 = MD5.HashData(bytes);
+                var hash = Convert.ToBase64String(XorBytes(Sub1(bytes, md5), Sub2(bytes, md5)));
 
-            var source = (normalized + sid + progId + regDate + Experience + "\0").ToLowerInvariant();
-            var bytes = Encoding.Unicode.GetBytes(source);
-            var md5 = MD5.HashData(bytes);
-            var hash = Convert.ToBase64String(XorBytes(Sub1(bytes, md5), Sub2(bytes, md5)));
-
-            key.SetValue("ProgId", progId);
-            key.SetValue("Hash", hash);
-            return true;
+                key.SetValue("ProgId", progId);
+                key.SetValue("Hash", hash);
+                return true;
+            }
         }
         catch
         {
