@@ -239,6 +239,10 @@ public static string SettingsPath => Path.Combine(SettingsDirectory, "settings.j
 | R52 | 置顶图钉随状态变亮/变暗、呈现钉入/拔起 | 已实现 | `MainWindow.xaml(.cs)` |
 | R53 | 灵动岛右侧顶角镜像左侧并缩小整体尺寸 | 已实现 | `MainWindow.xaml` |
 | R54 | 窗口适配图片时以图片的屏幕位置为锚点 | 已实现 | `MainWindow.xaml.cs`、`Win32.cs` |
+| R55 | 双向适配按钮改为双层形象图标，目标层在上 | 已实现 | `MainWindow.xaml` |
+| R56 | 置顶/关闭按钮顶部齐平窗口，外框用灵动岛方式构建 | 已实现 | `MainWindow.xaml(.cs)` |
+| R57 | 生成常规 Windows exe 安装程序并安装为默认打开候选 | 已实现 | `src/WBInstaller/`、`封装安装包.bat` |
+| R58 | 扩展图片格式并用系统缩略图支持流程图/脑图 | 已实现 | `SupportedFormats.cs`、`ShellPreviewService.cs` |
 
 ---
 
@@ -2759,7 +2763,163 @@ var residualOffsetY = (imageTopScreen - (top + clientPadY)) / dpi.DpiScaleY;
 
 ---
 
+### R55 双向适配按钮的双层形象图标
+
+**需求原文摘要**：优化“以窗口匹配图片大小”和“以图片大小匹配窗口”的图标，希望更形象；logo 设计成两层，以图片为准的上面一层是图片形象，以窗口为准的上面一层是窗口形象。
+
+**实现状态**：已实现。
+
+**实现逻辑**：
+1. 废弃原来的 `⤢` / `⤡` 抽象符号，改用两个 `Path` 叠加的双层徽标：底层为来源形状（灰色描边、透明填充），上层为目标形状（岛体色填充 + 白色描边，`Margin=4,4` 形成叠层）。
+2. `WindowToImageButton`（窗口适配图片，目标=图片）：底层窗口轮廓，上层图片轮廓（矩形 + 太阳 + 山形折线）。
+3. `ImageToWindowButton`（图片适配窗口，目标=窗口）：底层图片轮廓，上层窗口轮廓（矩形 + 标题栏分隔线）。
+4. 图标尺寸统一 18x18，图层 14x14，放在 22x22 按钮内；ToolTip 同时明确“以图片大小为准/以窗口大小为准”。
+
+**实现方式**：`MainWindow.xaml`。
+
+```xml
+<Button x:Name="WindowToImageButton" ... ToolTip="窗口适配图片：以图片大小为准（Shift+Ctrl+Alt+R）">
+    <Grid Width="18" Height="18">
+        <Path Style="{StaticResource LayerIcon}"
+              Data="M1,2.5 H13 V11.5 H1 Z M1,5 H13" Stroke="#FF7A8290" Fill="Transparent" />
+        <Path Style="{StaticResource LayerIcon}" Margin="4,4,0,0"
+              Data="M1,2.5 H13 V11.5 H1 Z M10,4.7 H11.6 V6.3 H10 Z M1.8,10.6 L5.2,7.2 L7.8,9.6 L10.4,6.6 L13.2,10.8"
+              Stroke="#FFFFFF" Fill="#F2353537" />
+    </Grid>
+</Button>
+```
+
+**验证**：`dotnet build -c Release` 通过；两个图标的上下层与功能目标一一对应。
+
+---
+
+### R56 置顶/关闭按钮顶部齐平并按灵动岛方式构建外框
+
+**需求原文摘要**：优化置顶和关闭两个按钮，两个按钮上面与窗口顶部重合，并采用灵动岛的外形构建方式构建两个按钮的外框。
+
+**实现状态**：已实现。
+
+**实现逻辑**：
+1. `CloseHost` 高度由 40 收到 28，宽度 64→58（30+28）；按钮去掉顶部 `Margin`，`CloseStrip` 展开目标由 `Y=2` 改为 `Y=0`，收起目标 `-32` 改为 `-30`，保证展开后按钮顶边与窗口顶边严格齐平。
+2. 两个按钮的外框由 `Border + CornerRadius` 换成 `Path`，使用与灵动岛相同的构造法：顶边 `M 2,0 H 28`（或 26）与窗口相切，左右肩为互镜像的凹肩贝塞尔，两侧竖直，底部用圆角收口。
+3. 图钉状态由 `DataTrigger` 改为设置 `Path.Fill`：钉入为琥珀亮色，拔起为暗灰 + 图钉 42% 透明并倾斜 35°；关闭按钮悬停时外框填充变亮红。
+4. 图标文字保留 `TextBlock` / `ContentPresenter`，绘制在 `Path` 之上。
+
+**实现方式**：`MainWindow.xaml`、`MainWindow.xaml.cs`。
+
+```xml
+<Grid x:Name="CloseHost" Width="58" Height="28" HorizontalAlignment="Right"
+      VerticalAlignment="Top" Background="Transparent" ClipToBounds="True">
+    <StackPanel x:Name="CloseStrip" HorizontalAlignment="Right" VerticalAlignment="Top">
+        <StackPanel.RenderTransform>
+            <TranslateTransform x:Name="CloseTransform" Y="-30" />
+        </StackPanel.RenderTransform>
+        ...
+    </StackPanel>
+</Grid>
+```
+
+```xml
+<Path x:Name="PinShape" Stretch="Fill"
+      Data="M 2,0 H 28 C 26.2,0 24,1.8 24,4 V 20 C 24,23.3 21.3,26 18,26 H 12 C 8.7,26 6,23.3 6,20 V 4 C 6,1.8 3.8,0 2,0 Z"
+      Fill="#FFD99A2B" Stroke="#55FFFFFF" StrokeThickness="0.8" />
+```
+
+```csharp
+CloseHost.MouseEnter += (_, _) => AnimateCloseButton(0);
+CloseHost.MouseLeave += (_, _) => AnimateCloseButton(-30);
+```
+
+**验证**：`dotnet build -c Release` 通过；路径左右控制点关于按钮中线对称。
+
+---
+
+### R57 常规 Windows exe 安装程序
+
+**需求原文摘要**：优化安装包构建方式，希望像正常软件一样生成一个 exe 安装程序，运行后把项目安装到 Windows 系统并作为图片默认打开方式。
+
+**实现状态**：已实现；默认应用的最后一步仍按 Windows 11 规则由用户在系统对话框中确认。
+
+**实现逻辑**：
+1. 新增 `src/WBInstaller/` WinForms 项目，发布为单文件 `GuaishushuViewerSetup.exe`；内嵌发布后的 `GuaishushuViewer.exe`（`LogicalName=GuaishushuViewer.exe`），因此安装程序自带主程序。
+2. 安装界面显示版本、目标目录、进度与状态；点击安装后解压内嵌 exe 到 `%LOCALAPPDATA%\GuaishushuViewer`。
+3. 注册 HKCU ProgID、DefaultIcon、shell\open\command；对所有支持格式写 `Software\Classes\<ext>`、`OpenWithProgids` 和 `ApplicationAssociationToasts`，但不伪造受保护的 `UserChoice`。
+4. 通过 `WScript.Shell` COM 创建桌面与开始菜单快捷方式，写入卸载注册表项（`DisplayVersion` 来自发布时传入的 `-p:Version`，无版本硬编码），调用 `SHChangeNotify` 刷新 Shell。
+5. 完成后启动 `GuaishushuViewer.exe --set-default`，打开 Windows 自带“打开方式”窗口；用户选择“怪叔叔看图”并勾选始终使用即完成默认关联。
+6. `封装安装包.bat` 先发布主程序到 `artifacts/setup-stage/`，再发布安装程序到 `artifacts/installer-stage/`，最终输出 `artifacts/setup/GuaishushuViewer-v<Version>-Setup.exe` 与固定名副本；原 ZIP + `install.cmd` 保留为兼容方式。
+
+**实现方式**：`src/WBInstaller/WBInstaller.csproj`、`src/WBInstaller/Program.cs`、`封装安装包.bat`。
+
+```xml
+<EmbeddedResource Include="..\..\artifacts\setup-stage\GuaishushuViewer.exe"
+                  LogicalName="GuaishushuViewer.exe"
+                  Condition="Exists('..\..\artifacts\setup-stage\GuaishushuViewer.exe')" />
+```
+
+```bat
+dotnet publish "%SETUP_PROJ%" -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -p:DebugType=None -p:Version=%VERSION% -o "%INSTALLER_STAGE%"
+copy /Y "%INSTALLER_STAGE%\GuaishushuViewerSetup.exe" "%FINAL_EXE%" >nul
+```
+
+**验证**：`封装安装包.bat --ci` 实跑通过，生成 `GuaishushuViewer-v1.4.0-Setup.exe`，`ProductVersion` 为干净的 `1.4.0`；安装逻辑覆盖程序、快捷方式、关联、卸载项与默认应用确认。
+
+---
+
+### R58 扩展图片格式与流程图/脑图预览
+
+**需求原文摘要**：写清楚支持哪些图片格式；常用 jpg 系列、png 系列、bmp 系列、icon 系列、web 系列之外希望支持更多常用格式，甚至直接浏览流程图、脑图等格式。
+
+**实现状态**：已实现。
+
+**实现逻辑**：
+1. 新建 `Models/SupportedFormats.cs` 作为格式清单唯一来源，分 `Raster`（WIC 直接解码）与 `RichPreview`（Windows Shell 缩略图）两组。
+2. `ImageFile.IsSupported`、`FileAssociationService` 与安装程序（链接同一源文件）都从 `SupportedFormats.All` 读取，避免三处漂移。
+3. `MainWindow.DecodeImage` 先尝试 `BitmapImage` 原生解码；失败则调用 `ShellPreviewService.TryLoad`，通过 `IShellItemImageFactory` 请求系统缩略图，失败时退而请求关联图标。
+4. 解码结果统一转 `Bgra32` 后写入既有 `_sourcePixels`，后续缩放、平移、增强管线完全不变。
+5. 关于窗口新增“支持的格式”段落，显示 `SupportedFormats.DisplayText`；README 同步说明“矢量/文档格式依赖系统已安装对应软件生成缩略图，查看的是系统预览位图”。
+
+**实现方式**：`Models/SupportedFormats.cs`、`Services/ShellPreviewService.cs`、`Services/SettingsService.cs`、`Services/FileAssociationService.cs`、`MainWindow.xaml.cs`、`AboutWindow.xaml(.cs)`、`packaging/install.cmd`、`README.md`。
+
+```csharp
+private static BitmapSource? DecodeImage(string path)
+{
+    try
+    {
+        var bitmap = new BitmapImage();
+        bitmap.BeginInit();
+        bitmap.CacheOption = BitmapCacheOption.OnLoad;
+        bitmap.CreateOptions = BitmapCreateOptions.IgnoreImageCache;
+        bitmap.UriSource = new Uri(path, UriKind.Absolute);
+        bitmap.EndInit();
+        return bitmap;
+    }
+    catch
+    {
+        return ShellPreviewService.TryLoad(path);
+    }
+}
+```
+
+```csharp
+var hr = factory.GetImage(size,
+    SigbFlags.BiggerSizeOk | SigbFlags.ThumbnailOnly | SigbFlags.ScaleUp, out bitmap);
+if (hr != 0 || bitmap == IntPtr.Zero)
+    hr = factory.GetImage(size, SigbFlags.BiggerSizeOk | SigbFlags.IconOnly | SigbFlags.ScaleUp, out bitmap);
+```
+
+**验证**：`dotnet build -c Release` 通过；WIC 支持的格式走原生路径，SVG/PDF/XMind/draw.io/Visio 等走 Shell 缩略图路径，无第三方依赖。
+
+---
+
 ## 11. 版本变更记录
+
+### 1.4.0（2026-11-18）
+
+- 双向适配按钮换成双层形象图标：上层为目标（窗口/图片），下层为来源，功能指向更直观（R55）。
+- 置顶与关闭按钮顶部与窗口齐平，外框改用灵动岛构建法（相切顶边 + 镜像凹肩 + 圆角底部）（R56）。
+- 新增 `src/WBInstaller/` 常规 exe 安装程序：内嵌主程序、安装到用户目录、注册关联/快捷方式/卸载项，最后打开系统默认应用确认窗口；`封装安装包.bat` 同时产出 exe 与 ZIP（R57）。
+- 格式清单集中到 `SupportedFormats.cs`，WIC 直接解码扩展至 HEIC/AVIF/JXL/JP2/TGA 等；新增 Shell 缩略图回退，可预览 SVG、PDF、XMind、draw.io、Visio 等流程图/脑图文件（R58）。
+- 关于窗口与 README 明确列出全部支持格式与预览限制；版本号升至 1.4.0。
 
 ### 1.3.0（2026-11-18）
 

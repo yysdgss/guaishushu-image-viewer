@@ -72,8 +72,8 @@ public partial class MainWindow : Window
 
         IslandHitArea.MouseEnter += (_, _) => AnimateIsland(true);
         IslandHitArea.MouseLeave += (_, _) => AnimateIsland(false);
-        CloseHost.MouseEnter += (_, _) => AnimateCloseButton(2);
-        CloseHost.MouseLeave += (_, _) => AnimateCloseButton(-32);
+        CloseHost.MouseEnter += (_, _) => AnimateCloseButton(0);
+        CloseHost.MouseLeave += (_, _) => AnimateCloseButton(-30);
         ImageViewport.SizeChanged += (_, _) => { if (!_fittingWindow) ApplyImagePosition(); };
         UpdatePinState();
         ApplyVisualSettings(App.Settings);
@@ -158,18 +158,18 @@ public partial class MainWindow : Window
     {
         try
         {
-            var bitmap = new BitmapImage();
-            bitmap.BeginInit();
-            bitmap.CacheOption = BitmapCacheOption.OnLoad;
-            bitmap.CreateOptions = BitmapCreateOptions.IgnoreImageCache;
-            bitmap.UriSource = new Uri(path, UriKind.Absolute);
-            bitmap.EndInit();
+            // WIC decodes ordinary bitmap formats; document/vector formats fall back
+            // to the Windows shell thumbnail provider (see ShellPreviewService).
+            var decoded = DecodeImage(path)
+                ?? throw new InvalidOperationException("系统无法解码该格式，且 Windows 未提供可用缩略图。");
+            var source = decoded.Format == PixelFormats.Bgra32
+                ? decoded
+                : new FormatConvertedBitmap(decoded, PixelFormats.Bgra32, null, 0);
 
-            _pixelWidth = bitmap.PixelWidth;
-            _pixelHeight = bitmap.PixelHeight;
+            _pixelWidth = source.PixelWidth;
+            _pixelHeight = source.PixelHeight;
             _sourcePixels = new int[_pixelWidth * _pixelHeight];
-            bitmap.CopyPixels(_sourcePixels, _pixelWidth * 4, 0);
-            bitmap.Freeze();
+            source.CopyPixels(_sourcePixels, _pixelWidth * 4, 0);
 
             _displayPixels = new int[_sourcePixels.Length];
             _display = new WriteableBitmap(_pixelWidth, _pixelHeight, 96, 96, PixelFormats.Bgra32, null);
@@ -193,6 +193,25 @@ public partial class MainWindow : Window
         {
             MessageBox.Show($"无法打开图片：{ex.Message}", AppInfo.Name,
                 MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
+    /// <summary>Try native WIC decoding first, then the system thumbnail provider.</summary>
+    private static BitmapSource? DecodeImage(string path)
+    {
+        try
+        {
+            var bitmap = new BitmapImage();
+            bitmap.BeginInit();
+            bitmap.CacheOption = BitmapCacheOption.OnLoad;
+            bitmap.CreateOptions = BitmapCreateOptions.IgnoreImageCache;
+            bitmap.UriSource = new Uri(path, UriKind.Absolute);
+            bitmap.EndInit();
+            return bitmap;
+        }
+        catch
+        {
+            return ShellPreviewService.TryLoad(path);
         }
     }
 

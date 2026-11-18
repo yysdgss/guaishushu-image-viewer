@@ -40,10 +40,8 @@ internal static class SettingsService
 
 internal static class ImageFile
 {
-    private static readonly HashSet<string> Extensions = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ".png", ".jpg", ".jpeg", ".jfif", ".bmp", ".gif", ".webp", ".tif", ".tiff", ".ico"
-    };
+    private static readonly HashSet<string> Extensions =
+        new(SupportedFormats.All, StringComparer.OrdinalIgnoreCase);
 
     public static bool IsSupported(string path)
     {

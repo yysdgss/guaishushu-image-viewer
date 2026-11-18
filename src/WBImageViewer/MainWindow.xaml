@@ -44,6 +44,15 @@
             </Setter>
         </Style>
 
+        <Style x:Key="LayerIcon" TargetType="Path">
+            <Setter Property="Width" Value="14" />
+            <Setter Property="Height" Value="14" />
+            <Setter Property="Stretch" Value="None" />
+            <Setter Property="StrokeThickness" Value="1.1" />
+            <Setter Property="HorizontalAlignment" Value="Left" />
+            <Setter Property="VerticalAlignment" Value="Top" />
+        </Style>
+
         <Style x:Key="SmallButton" TargetType="Button">
             <Setter Property="Padding" Value="10,5" />
             <Setter Property="Margin" Value="4,0,0,0" />
@@ -119,10 +128,32 @@
                             Orientation="Horizontal" HorizontalAlignment="Center"
                             VerticalAlignment="Center" Margin="0,1,0,0"
                             Opacity="0" IsHitTestVisible="False">
-                    <Button x:Name="WindowToImageButton" Style="{StaticResource IslandButton}" Width="22" Height="22" FontSize="12" Content="⤢"
-                            ToolTip="窗口适配图片 (Shift+Ctrl+Alt+R)" Click="WindowToImageButton_Click" />
-                    <Button x:Name="ImageToWindowButton" Style="{StaticResource IslandButton}" Width="22" Height="22" FontSize="12" Content="⤡"
-                            ToolTip="图片适配窗口 (Shift+Ctrl+Alt+S)" Click="ImageToWindowButton_Click" />
+                    <Button x:Name="WindowToImageButton" Style="{StaticResource IslandButton}" Width="22" Height="22" FontSize="12"
+                            ToolTip="窗口适配图片：以图片大小为准（Shift+Ctrl+Alt+R）" Click="WindowToImageButton_Click">
+                        <!-- Two-layer logo: the picture (target) is the bright top layer,
+                             the window (source) is the dim layer behind it. -->
+                        <Grid Width="18" Height="18">
+                            <Path Style="{StaticResource LayerIcon}"
+                                  Data="M1,2.5 H13 V11.5 H1 Z M1,5 H13"
+                                  Stroke="#FF7A8290" Fill="Transparent" />
+                            <Path Style="{StaticResource LayerIcon}" Margin="4,4,0,0"
+                                  Data="M1,2.5 H13 V11.5 H1 Z M10,4.7 H11.6 V6.3 H10 Z M1.8,10.6 L5.2,7.2 L7.8,9.6 L10.4,6.6 L13.2,10.8"
+                                  Stroke="#FFFFFF" Fill="#F2353537" />
+                        </Grid>
+                    </Button>
+                    <Button x:Name="ImageToWindowButton" Style="{StaticResource IslandButton}" Width="22" Height="22" FontSize="12"
+                            ToolTip="图片适配窗口：以窗口大小为准（Shift+Ctrl+Alt+S）" Click="ImageToWindowButton_Click">
+                        <!-- Two-layer logo: the window (target) is the bright top layer,
+                             the picture (source) is the dim layer behind it. -->
+                        <Grid Width="18" Height="18">
+                            <Path Style="{StaticResource LayerIcon}"
+                                  Data="M1,2.5 H13 V11.5 H1 Z M10,4.7 H11.6 V6.3 H10 Z M1.8,10.6 L5.2,7.2 L7.8,9.6 L10.4,6.6 L13.2,10.8"
+                                  Stroke="#FF7A8290" Fill="Transparent" />
+                            <Path Style="{StaticResource LayerIcon}" Margin="4,4,0,0"
+                                  Data="M1,2.5 H13 V11.5 H1 Z M1,5 H13"
+                                  Stroke="#FFFFFF" Fill="#F2353537" />
+                        </Grid>
+                    </Button>
                     <TextBlock x:Name="IslandClock" Width="34" Text="--:--" FontSize="9"
                                Foreground="#FFD7DEE8" TextAlignment="Center" VerticalAlignment="Center" />
                     <Button x:Name="AdjustButton" Style="{StaticResource IslandButton}" Width="22" Height="22" FontSize="12" Content="◑"
@@ -174,76 +205,80 @@
             </StackPanel>
         </Border>
 
-        <!-- Top-right slide-out strip: pushpin (topmost) + close. Both share one
-             translation so they extend together from the same invisible hover host. -->
-        <Grid x:Name="CloseHost" Width="64" Height="40" HorizontalAlignment="Right"
+        <!-- Top-right slide-out strip: pushpin (topmost) + close. Both slide down until
+             their top edges are flush with the window top, and both frames are drawn
+             with the island outline: tangent top, mirrored concave shoulders, rounded bottom. -->
+        <Grid x:Name="CloseHost" Width="58" Height="28" HorizontalAlignment="Right"
               VerticalAlignment="Top" Background="Transparent" ClipToBounds="True">
             <StackPanel x:Name="CloseStrip" Orientation="Horizontal" HorizontalAlignment="Right"
                         VerticalAlignment="Top">
                 <StackPanel.RenderTransform>
-                    <TranslateTransform x:Name="CloseTransform" Y="-32" />
+                    <TranslateTransform x:Name="CloseTransform" Y="-30" />
                 </StackPanel.RenderTransform>
 
-                    <Button x:Name="PinButton" Width="30" Height="28" Margin="0,2,2,0"
-                            Focusable="False" Cursor="Hand" Click="PinButton_Click"
-                            Tag="Pinned" ToolTip="取消置顶 (Shift+Ctrl+Alt+T)">
-                        <Button.Template>
-                            <ControlTemplate TargetType="Button">
-                                <Border x:Name="PinBorder" Background="#FFD99A2B" CornerRadius="6,0,0,6">
-                                    <TextBlock x:Name="PinGlyph" Text="📌"
-                                               FontFamily="Segoe UI Emoji, Segoe UI Symbol"
-                                               FontSize="16" HorizontalAlignment="Center"
-                                               VerticalAlignment="Center"
-                                               RenderTransformOrigin="0.5,0.5">
-                                        <TextBlock.RenderTransform>
-                                            <RotateTransform Angle="0" />
-                                        </TextBlock.RenderTransform>
-                                    </TextBlock>
-                                </Border>
-                                <ControlTemplate.Triggers>
-                                    <!-- Tag carries the topmost state; pinned is bright and driven
-                                         straight down, unpinned dims and tilts like a pulled pin. -->
-                                    <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}" Value="Pinned">
-                                        <Setter TargetName="PinBorder" Property="Background" Value="#FFD99A2B" />
-                                        <Setter TargetName="PinGlyph" Property="Opacity" Value="1" />
-                                        <Setter TargetName="PinGlyph" Property="RenderTransform">
-                                            <Setter.Value>
-                                                <RotateTransform Angle="0" />
-                                            </Setter.Value>
-                                        </Setter>
-                                    </DataTrigger>
-                                    <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}" Value="Unpinned">
-                                        <Setter TargetName="PinBorder" Property="Background" Value="#CC242830" />
-                                        <Setter TargetName="PinGlyph" Property="Opacity" Value="0.42" />
-                                        <Setter TargetName="PinGlyph" Property="RenderTransform">
-                                            <Setter.Value>
-                                                <RotateTransform Angle="35" />
-                                            </Setter.Value>
-                                        </Setter>
-                                    </DataTrigger>
-                                    <Trigger Property="IsMouseOver" Value="True">
-                                        <Setter TargetName="PinBorder" Property="Background" Value="#FF3A4250" />
-                                    </Trigger>
-                                    <Trigger Property="IsPressed" Value="True">
-                                        <Setter TargetName="PinBorder" Property="Background" Value="#FF4C5668" />
-                                    </Trigger>
-                                </ControlTemplate.Triggers>
-                            </ControlTemplate>
-                        </Button.Template>
-                    </Button>
+                <Button x:Name="PinButton" Width="30" Height="28" Margin="0,0,2,0"
+                        Focusable="False" Cursor="Hand" Click="PinButton_Click"
+                        Tag="Pinned" ToolTip="取消置顶 (Shift+Ctrl+Alt+T)">
+                    <Button.Template>
+                        <ControlTemplate TargetType="Button">
+                            <Grid>
+                                <Path x:Name="PinShape" Stretch="Fill"
+                                      Data="M 2,0 H 28 C 26.2,0 24,1.8 24,4 V 20 C 24,23.3 21.3,26 18,26 H 12 C 8.7,26 6,23.3 6,20 V 4 C 6,1.8 3.8,0 2,0 Z"
+                                      Fill="#FFD99A2B" Stroke="#55FFFFFF" StrokeThickness="0.8" />
+                                <TextBlock x:Name="PinGlyph" Text="📌"
+                                           FontFamily="Segoe UI Emoji, Segoe UI Symbol"
+                                           FontSize="15" HorizontalAlignment="Center"
+                                           VerticalAlignment="Center" Margin="0,-1,0,0"
+                                           RenderTransformOrigin="0.5,0.5">
+                                    <TextBlock.RenderTransform>
+                                        <RotateTransform Angle="0" />
+                                    </TextBlock.RenderTransform>
+                                </TextBlock>
+                            </Grid>
+                            <ControlTemplate.Triggers>
+                                <!-- Tag carries the topmost state; pinned is bright and driven
+                                     straight down, unpinned dims and tilts like a pulled pin. -->
+                                <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}" Value="Pinned">
+                                    <Setter TargetName="PinShape" Property="Fill" Value="#FFD99A2B" />
+                                    <Setter TargetName="PinGlyph" Property="Opacity" Value="1" />
+                                    <Setter TargetName="PinGlyph" Property="RenderTransform">
+                                        <Setter.Value><RotateTransform Angle="0" /></Setter.Value>
+                                    </Setter>
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}" Value="Unpinned">
+                                    <Setter TargetName="PinShape" Property="Fill" Value="#CC242830" />
+                                    <Setter TargetName="PinGlyph" Property="Opacity" Value="0.42" />
+                                    <Setter TargetName="PinGlyph" Property="RenderTransform">
+                                        <Setter.Value><RotateTransform Angle="35" /></Setter.Value>
+                                    </Setter>
+                                </DataTrigger>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="PinShape" Property="Fill" Value="#FF3A4250" />
+                                </Trigger>
+                                <Trigger Property="IsPressed" Value="True">
+                                    <Setter TargetName="PinShape" Property="Fill" Value="#FF4C5668" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Button.Template>
+                </Button>
 
-                <Button x:Name="CloseButton" Width="28" Height="28" Margin="0,2,0,0"
+                <Button x:Name="CloseButton" Width="28" Height="28" Margin="0"
                         Content="×" FontSize="17" Foreground="#FFE8EAED"
                         Focusable="False" Cursor="Hand" Click="CloseButton_Click"
                         ToolTip="关闭窗口">
                     <Button.Template>
                         <ControlTemplate TargetType="Button">
-                            <Border x:Name="Bd" Background="#CCB42B2B" CornerRadius="0,0,6,6">
-                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
-                            </Border>
+                            <Grid>
+                                <Path x:Name="CloseShape" Stretch="Fill"
+                                      Data="M 2,0 H 26 C 24.2,0 22,1.8 22,4 V 20 C 22,23.3 19.3,26 16,26 H 12 C 8.7,26 6,23.3 6,20 V 4 C 6,1.8 3.8,0 2,0 Z"
+                                      Fill="#CCB42B2B" Stroke="#55FFFFFF" StrokeThickness="0.8" />
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                  Margin="0,-1,0,0" />
+                            </Grid>
                             <ControlTemplate.Triggers>
                                 <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter TargetName="Bd" Property="Background" Value="#FFE04B4B" />
+                                    <Setter TargetName="CloseShape" Property="Fill" Value="#FFE04B4B" />
                                 </Trigger>
                             </ControlTemplate.Triggers>
                         </ControlTemplate>

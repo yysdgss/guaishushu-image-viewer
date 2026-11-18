@@ -27,7 +27,7 @@ reg add "HKCU\Software\Classes\%PROGID%" /ve /d "¹ÖÊåÊå¿´Í¼" /f >nul
 reg add "HKCU\Software\Classes\%PROGID%\DefaultIcon" /ve /d "\"%DEST%\%APP%,0\"" /f >nul
 reg add "HKCU\Software\Classes\%PROGID%\shell\open\command" /ve /d "\"%DEST%\%APP%\" \"%%1\"" /f >nul
 
-for %%E in (.png .jpg .jpeg .jfif .bmp .gif .webp .tif .tiff .ico) do (
+for %%E in (.png .jpg .jpeg .jfif .jpe .bmp .dib .gif .webp .tif .tiff .ico .heic .heif .avif .jxl .jp2 .j2k .jpf .jpx .wdp .hdp .exif .tga .pcx .pbm .pgm .ppm .pnm .sgi .ras .svg .svgz .emf .wmf .pdf .psd .ai .eps .xmind .mm .drawio .vsdx .vsd .vdw .vst .graphml) do (
   reg add "HKCU\Software\Classes\%%E" /ve /d "%PROGID%" /f >nul
   reg add "HKCU\Software\Classes\%%E\OpenWithProgids" /v "%PROGID%" /d "" /f >nul
   reg delete "HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\FileExts\%%E\UserChoice" /f >nul 2>&1

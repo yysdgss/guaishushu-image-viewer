@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>GuaishushuViewerSetup</AssemblyName>
+    <RootNamespace>WBInstaller</RootNamespace>
+    <ApplicationIcon>..\WBImageViewer\Assets\app.ico</ApplicationIcon>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- One shared format list for viewer, association registration and installer. -->
+    <Compile Include="..\WBImageViewer\Models\SupportedFormats.cs" Link="SupportedFormats.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The packaging batch publishes the viewer here before building the installer. -->
+    <EmbeddedResource Include="..\..\artifacts\setup-stage\GuaishushuViewer.exe"
+                      LogicalName="GuaishushuViewer.exe"
+                      Condition="Exists('..\..\artifacts\setup-stage\GuaishushuViewer.exe')" />
+  </ItemGroup>
+
+</Project>

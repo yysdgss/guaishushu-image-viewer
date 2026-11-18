@@ -9,8 +9,7 @@ internal static class FileAssociationService
 {
     private const string ProgId = "GuaishushuViewer.Image";
 
-    private static readonly string[] Extensions =
-        { ".png", ".jpg", ".jpeg", ".jfif", ".bmp", ".gif", ".webp", ".tif", ".tiff", ".ico" };
+    private static readonly string[] Extensions = SupportedFormats.All;
 
     private const string SamplePng =
         "iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAAAeklEQVR4nO3PUQkAIBTAwJfJTIY1liH8" +

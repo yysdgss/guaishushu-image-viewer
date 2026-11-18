@@ -10,6 +10,7 @@ public partial class AboutWindow : Window
         InitializeComponent();
         ProductName.Text = AppInfo.Name;
         VersionText.Text = $"版本 {AppInfo.Version} · MIT 免费开源";
+        FormatsText.Text = SupportedFormats.DisplayText;
     }
 
     private void Close_Click(object sender, RoutedEventArgs e) => Close();

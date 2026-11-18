@@ -36,6 +36,10 @@
                     背景色与面板背景透明度（图片不受影响）；亮度、对比度、饱和度、去噪、锐化调整与智能优化。
                 </TextBlock>
 
+                <TextBlock Text="支持的格式" FontWeight="SemiBold" Margin="0,14,0,6" />
+                <TextBlock x:Name="FormatsText" TextWrapping="Wrap" LineHeight="21"
+                           Foreground="#FF30343B" />
+
                 <TextBlock Text="操作方法" FontWeight="SemiBold" Margin="0,14,0,6" />
                 <TextBlock TextWrapping="Wrap" LineHeight="21" Foreground="#FF30343B">
                     <Run Text="• 滚轮：以鼠标位置为中心缩放图片，窗口大小不变。" /><LineBreak />

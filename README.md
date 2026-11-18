@@ -2,13 +2,13 @@
 
 一款面向 Windows 11 的极简无边框参考图查看器：图片置顶、滚轮以鼠标为中心缩放、抓取手势移动窗口，并内置亮度/对比度/饱和度/去噪/锐化调整。
 
-- 当前版本：**1.3.0**
+- 当前版本：**1.4.0**
 - 技术栈：**WPF / .NET 10（Windows）**
 - 许可：**MIT 免费开源**
 
 ## 核心功能
 
-- 无边框面板，顶部灵动岛控制条（双翼外伸 + 内圆角肩部 + 底部收拢），右上角悬停展开 📌 置顶与关闭按钮
+- 无边框面板，顶部灵动岛控制条（顶边相切、左右凹肩镜像、底部圆角）；适配按钮为双层图标：目标层在上（图片→窗口用窗口图标，窗口→图片用图片图标）；右上角悬停展开 📌 置顶与关闭按钮（顶部与窗口齐平、同款岛形外框）
 - 图片画布始终裁切到窗口当前客户区，缩放/平移不会越界或遮挡控件
 - 图片始终置顶；快捷键 `Shift+Ctrl+Alt+T` 切换
 - 滚轮以鼠标位置为中心缩放，窗口尺寸不变
@@ -33,13 +33,20 @@
 | 顶部灵动岛 | 适配 / 图片调整 / 设置 / 关于 |
 | 右上角悬停 | 展开图钉置顶与关闭按钮 |
 
+## 支持的格式
+
+直接解码：JPG/JPEG/JFIF/JPE、PNG、BMP/DIB、GIF、WebP、TIFF、ICO、HEIC/HEIF、AVIF、JXL、JP2/J2K、WDP/HDP、EXIF、TGA、PCX、PBM/PGM/PPM/PNM 等。
+
+Windows 缩略图预览：SVG/SVGZ、EMF/WMF、PDF、PSD/AI/EPS，以及 XMind(`.xmind`)、FreeMind(`.mm`)、draw.io(`.drawio`)、Visio(`.vsdx/.vsd/.vdw`) 等流程图与脑图文件。此类文件依赖系统已安装对应软件来生成缩略图，查看的是系统提供的预览位图。
+
 ## 下载
 
-- [单文件运行包（Releases）](../../releases)：`GuaishushuViewer-v1.3.0.exe`
-- [Windows 安装包 ZIP（Releases）](../../releases)：`GuaishushuViewer-v1.3.0-Setup.zip`
+- [单文件运行包（Releases）](../../releases)：`GuaishushuViewer-v1.4.0.exe`
+- [Windows exe 安装程序（推荐）](../../releases)：`GuaishushuViewer-v1.4.0-Setup.exe`
+- [Windows 安装包 ZIP（兼容方式）](../../releases)：`GuaishushuViewer-v1.4.0-Setup.zip`
 - 严谨开发档案：[DEVELOPMENT.md](DEVELOPMENT.md)（每项需求均附实现逻辑、方式与当前代码片段）
 
-> 解压安装包后运行 `install.cmd`：它会自动复制程序、创建桌面/开始菜单快捷方式、注册 ProgID 与 OpenWith 候选。由于 Windows 11 保护用户的“默认应用”选择，安装结束时会打开系统自带的“打开方式”窗口，请选择“怪叔叔看图”并勾选始终使用。
+> 运行 `GuaishushuViewer-Setup.exe` 会像常规软件一样把程序安装到 `%LOCALAPPDATA%\GuaishushuViewer`，创建桌面/开始菜单快捷方式、注册文件关联与卸载项，并打开系统“默认应用”确认窗口。由于 Windows 11 保护用户的默认应用选择，请在弹出窗口中选择“怪叔叔看图”并勾选始终使用。ZIP 包内的 `install.cmd` 是保留的兼容安装方式。
 
 ## 从源码构建
 
@@ -50,7 +57,7 @@
 封装安装包.bat
 ```
 
-输出统一位于 `artifacts/`：单文件在 `artifacts/single/`，安装包在 `artifacts/setup/`。两个批处理是固定代码，版本号只从 `src/WBImageViewer/WBImageViewer.csproj` 的 `<Version>` 读取；仓库根目录不再残留生成产物。
+输出统一位于 `artifacts/`：单文件在 `artifacts/single/`，安装程序与 ZIP 在 `artifacts/setup/`。两个批处理是固定代码，版本号只从 `src/WBImageViewer/WBImageViewer.csproj` 的 `<Version>` 读取；仓库根目录不再残留生成产物。安装程序源码位于 `src/WBInstaller/`，它链接查看器的格式清单，并内嵌发布后的主程序。
 
 ## 打赏作者
 
