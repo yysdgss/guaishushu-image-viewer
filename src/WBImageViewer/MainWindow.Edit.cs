@@ -51,13 +51,15 @@ public partial class MainWindow
 
     private void ShowToolBadge()
     {
-        var name = _annotationTool switch
+        var name = _regionAction != RegionAction.None
+            ? (_regionAction == RegionAction.Ocr ? "框选识别" : "框选翻译")
+            : _annotationTool switch
         {
             AnnotationTool.Line => "直线",
             AnnotationTool.Wave => "波浪线",
             AnnotationTool.DoubleLine => "双线",
             AnnotationTool.Freehand => "自由画",
-            AnnotationTool.Circle => "手绘圈注",
+            AnnotationTool.Circle => "圈注",
             AnnotationTool.Fill => "油漆桶填充",
             AnnotationTool.EraserFree => "自由擦除",
             AnnotationTool.EraserClick => "点击擦除",
@@ -68,12 +70,14 @@ public partial class MainWindow
         if (!show)
         {
             ToolBadge.Visibility = Visibility.Collapsed;
+            ToolBadgeMenu.Visibility = Visibility.Collapsed;
             return;
         }
 
         var diameter = _annotationTool is AnnotationTool.EraserFree or AnnotationTool.EraserClick
             ? _eraserSize : _annotationSize;
-        ToolBadgeName.Content = _selectedKind != ElementKind.None ? $"已选中 · {name}" : $"标注：{name}";
+        var style = _annotationLineStyle == InkStrokeStyle.Standard ? "标准" : "手绘";
+        ToolBadgeName.Content = _selectedKind != ElementKind.None ? $"已选中 · {name}" : $"标注：{name} · {style}";
         ToolBadgeSize.Content = $"直径 {diameter:0}";
         ToolBadgeOpacity.Content = _annotationHighlighter ? "高亮" : $"{_annotationOpacity:0%}";
         ToolBadgeColorDot.Fill = new SolidColorBrush(_annotationColor);
@@ -137,6 +141,7 @@ public partial class MainWindow
         }
 
         _annotating = true;
+        _draftSeed = Math.Abs(Guid.NewGuid().GetHashCode()) % int.MaxValue + 1;
         _draftPoints = new List<Point> { ToImageSpace(vp) };
         _draftPointer = vp;
         RefreshDraftVisual();
@@ -237,12 +242,13 @@ public partial class MainWindow
 
         if (_annotationTool != AnnotationTool.EraserFree && _draftPoints.Count >= 2)
         {
-            _annotations.Add(new AnnotationStroke(_annotationTool, _draftPoints,
-                _annotationColor, _annotationSize)
+            var stroke = new AnnotationStroke(_annotationTool, _draftPoints, _annotationColor,
+                ScreenToImageThickness(_annotationSize), _annotationLineStyle, _draftSeed)
             {
                 Opacity = _annotationOpacity,
                 Highlighter = _annotationHighlighter
-            });
+            };
+            _annotations.Add(stroke);
             RedrawAnnotations();
         }
         _draftPoints.Clear();
@@ -259,7 +265,7 @@ public partial class MainWindow
         return _selectedKind switch
         {
             ElementKind.Stroke when _selectedIndex >= 0 && _selectedIndex < _annotations.Count =>
-                _annotations[_selectedIndex].HitTest(vp, ToViewportSpace, radius),
+                _annotations[_selectedIndex].HitTest(vp, ToViewportSpace, radius, ViewScale, Math.Max(1, _pixelWidth), Math.Max(1, _pixelHeight)),
             ElementKind.Fill when _selectedIndex >= 0 && _selectedIndex < _fills.Count =>
                 _fills[_selectedIndex].HitTest(vp, ToViewportSpace, radius),
             ElementKind.Text when _selectedIndex >= 0 && _selectedIndex < _textCards.Count =>
@@ -291,7 +297,7 @@ public partial class MainWindow
                     return true;
                 }
             }
-            if (stroke.HitTest(vp, ToViewportSpace, Math.Max(10, stroke.Thickness)))
+            if (stroke.HitTest(vp, ToViewportSpace, Math.Max(10, stroke.Thickness * ViewScale), ViewScale, Math.Max(1, _pixelWidth), Math.Max(1, _pixelHeight)))
             {
                 BeginMoveStroke(_selectedIndex, vp);
                 return true;
@@ -324,7 +330,7 @@ public partial class MainWindow
                 return true;
             }
         for (var i = _annotations.Count - 1; i >= 0; i--)
-            if (_annotations[i].HitTest(vp, ToViewportSpace, Math.Max(12, _annotationSize * 2)))
+            if (_annotations[i].HitTest(vp, ToViewportSpace, Math.Max(12, _annotationSize * 2), ViewScale, Math.Max(1, _pixelWidth), Math.Max(1, _pixelHeight)))
             {
                 SelectElement(ElementKind.Stroke, i);
                 BeginMoveStroke(i, vp);
@@ -402,8 +408,9 @@ public partial class MainWindow
         {
             case ElementKind.Stroke when _selectedIndex < _annotations.Count:
                 var s = _annotations[_selectedIndex];
-                var copy = new AnnotationStroke(s.Tool, s.Points.Select(p => new Point(p.X + offset.X, p.Y + offset.Y)),
-                    s.Color, s.Thickness) { Opacity = s.Opacity, Highlighter = s.Highlighter };
+                var copy = new AnnotationStroke(s.Tool,
+                    s.Points.Select(p => new Point(p.X + offset.X, p.Y + offset.Y)),
+                    s.Color, s.Thickness, s.Style, s.Seed) { Opacity = s.Opacity, Highlighter = s.Highlighter };
                 _annotations.Add(copy);
                 _selectedIndex = _annotations.Count - 1;
                 break;
@@ -425,6 +432,17 @@ public partial class MainWindow
         RedrawAnnotations();
     }
 
+    private void SetLineStyle(InkStrokeStyle style)
+    {
+        _annotationLineStyle = style;
+        if (_selectedKind == ElementKind.Stroke && _selectedIndex >= 0 &&
+            _selectedIndex < _annotations.Count)
+        {
+            _annotations[_selectedIndex].Style = style;
+            RedrawAnnotations();
+        }
+    }
+
     private void ChangeSelectedLineType(AnnotationTool target)
     {
         if (_selectedKind != ElementKind.Stroke || _selectedIndex < 0 || _selectedIndex >= _annotations.Count) return;
@@ -439,7 +457,7 @@ public partial class MainWindow
     {
         if (_selectedKind != ElementKind.Stroke || _selectedIndex < 0 || _selectedIndex >= _annotations.Count) return;
         var stroke = _annotations[_selectedIndex];
-        stroke.Thickness = Math.Clamp(stroke.Thickness + delta, 1, 24);
+        stroke.Thickness = Math.Clamp(stroke.Thickness + ScreenToImageThickness(delta), 0.25, 80);
         RedrawAnnotations();
     }
 
@@ -504,26 +522,45 @@ public partial class MainWindow
             top + imagePoint.Y * ImageView.ActualHeight);
     }
 
+    private double ViewScale => Math.Max(0.001,
+        ImageView.ActualWidth / Math.Max(1.0, _pixelWidth));
+
+    private double ScreenToImageThickness(double screenPixels) =>
+        Math.Max(0.25, screenPixels / ViewScale);
+
     private void RedrawAnnotations()
     {
         AnnotationLayer.Children.Clear();
-        foreach (var fill in _fills)
+        var scale = ViewScale;
+        var iw = Math.Max(1, _pixelWidth);
+        var ih = Math.Max(1, _pixelHeight);
+        for (var i = 0; i < _fills.Count; i++)
         {
-            var visual = fill.CreateVisual();
-            if (visual == null) continue;
             var tl = ToViewportSpace(new Point(0, 0));
+            var seed = ToViewportSpace(_fills[i].Seed);
+            var visual = _fills[i].CreateVisual(_selectedKind == ElementKind.Fill && _selectedIndex == i,
+                new Point(seed.X - tl.X, seed.Y - tl.Y));
+            if (visual == null) continue;
             Canvas.SetLeft(visual, tl.X);
             Canvas.SetTop(visual, tl.Y);
-            ((System.Windows.Controls.Image)visual).Width = ImageView.ActualWidth;
-            ((System.Windows.Controls.Image)visual).Height = ImageView.ActualHeight;
+            if (visual is Canvas host)
+            {
+                host.Width = ImageView.ActualWidth;
+                host.Height = ImageView.ActualHeight;
+                if (host.Children.Count > 0 && host.Children[0] is System.Windows.Controls.Image img)
+                {
+                    img.Width = ImageView.ActualWidth;
+                    img.Height = ImageView.ActualHeight;
+                }
+            }
             AnnotationLayer.Children.Add(visual);
         }
         for (var i = 0; i < _annotations.Count; i++)
             AnnotationLayer.Children.Add(_annotations[i].CreateVisual(ToViewportSpace,
-                _selectedKind == ElementKind.Stroke && _selectedIndex == i));
+                _selectedKind == ElementKind.Stroke && _selectedIndex == i, scale, iw, ih));
         for (var i = 0; i < _textCards.Count; i++)
             AnnotationLayer.Children.Add(_textCards[i].CreateVisual(ToViewportSpace, ImageView.ActualWidth,
-                _selectedKind == ElementKind.Text && _selectedIndex == i));
+                _selectedKind == ElementKind.Text && _selectedIndex == i, scale));
     }
 
     private void RefreshDraftVisual()
@@ -546,11 +583,13 @@ public partial class MainWindow
         }
         else
         {
-            var draft = new AnnotationStroke(_annotationTool, _draftPoints, _annotationColor, _annotationSize)
+            var draft = new AnnotationStroke(_annotationTool, _draftPoints, _annotationColor,
+                ScreenToImageThickness(_annotationSize), _annotationLineStyle, _draftSeed)
             {
                 Opacity = _annotationOpacity, Highlighter = _annotationHighlighter
             };
-            _draftVisual = draft.CreateVisual(ToViewportSpace);
+            _draftVisual = draft.CreateVisual(ToViewportSpace, false, ViewScale,
+                Math.Max(1, _pixelWidth), Math.Max(1, _pixelHeight));
         }
         AnnotationLayer.Children.Add(_draftVisual);
     }
@@ -564,7 +603,7 @@ public partial class MainWindow
     private void EraseAt(Point viewportPoint, double radius)
     {
         for (var i = _annotations.Count - 1; i >= 0; i--)
-            if (_annotations[i].HitTest(viewportPoint, ToViewportSpace, radius))
+            if (_annotations[i].HitTest(viewportPoint, ToViewportSpace, radius, ViewScale, Math.Max(1, _pixelWidth), Math.Max(1, _pixelHeight)))
             {
                 _annotations.RemoveAt(i);
                 RedrawAnnotations();
@@ -583,8 +622,16 @@ public partial class MainWindow
 
     private void BeginRegionAction(RegionAction action)
     {
+        if (!AiService.IsConfigured)
+        {
+            MessageBox.Show("尚未配置大模型。请先在后台设置中填写 API 地址、密钥与模型名称，再使用 AI 识别或翻译。",
+                AppInfo.Name, MessageBoxButton.OK, MessageBoxImage.Information);
+            App.ShowAiSettings();
+            return;
+        }
         _regionAction = action;
         SetGrabCursor();
+        ShowToolBadge();
     }
 
     private void RefreshRegionVisual()
@@ -650,11 +697,13 @@ public partial class MainWindow
 
     private BitmapSource CropViewport(Rect rect)
     {
+        var imgLeft = double.IsNaN(Canvas.GetLeft(ImageView)) ? 0 : Canvas.GetLeft(ImageView);
+        var imgTop = double.IsNaN(Canvas.GetTop(ImageView)) ? 0 : Canvas.GetTop(ImageView);
         var scale = _pixelWidth / Math.Max(1.0, ImageView.ActualWidth);
-        var sx = Math.Clamp((int)(rect.Left * scale), 0, Math.Max(0, _pixelWidth - 1));
-        var sy = Math.Clamp((int)(rect.Top * scale), 0, Math.Max(0, _pixelHeight - 1));
-        var sw = Math.Clamp((int)(rect.Width * scale), 1, _pixelWidth - sx);
-        var sh = Math.Clamp((int)(rect.Height * scale), 1, _pixelHeight - sy);
+        var sx = Math.Clamp((int)Math.Round((rect.Left - imgLeft) * scale), 0, Math.Max(0, _pixelWidth - 1));
+        var sy = Math.Clamp((int)Math.Round((rect.Top - imgTop) * scale), 0, Math.Max(0, _pixelHeight - 1));
+        var sw = Math.Clamp((int)Math.Round(rect.Width * scale), 1, _pixelWidth - sx);
+        var sh = Math.Clamp((int)Math.Round(rect.Height * scale), 1, _pixelHeight - sy);
         var cropped = new CroppedBitmap(_display!, new Int32Rect(sx, sy, sw, sh));
         return new FormatConvertedBitmap(cropped, PixelFormats.Bgra32, null, 0);
     }
@@ -756,60 +805,160 @@ public partial class MainWindow
         ApplyImagePosition();
         if (IsLoaded) FitImageToWindow();
         RedrawAnnotations();
+        SyncPlaylistForCurrentImage();
         return true;
     }
 
     // ---------------- screenshot ----------------
 
-    private void StartScreenshot()
+    private void StartScreenshot(ScreenshotMode mode = ScreenshotMode.Region)
     {
-        var shot = new Views.ScreenshotWindow { Owner = this };
-        if (shot.ShowDialog() == true && shot.CapturedImage != null)
-            App.OpenBitmap(shot.CapturedImage, "屏幕截图");
+        try
+        {
+            var shot = new Views.ScreenshotWindow(mode)
+            {
+                Owner = IsLoaded ? this : null,
+                WindowStartupLocation = WindowStartupLocation.Manual
+            };
+            if (shot.ShowDialog() == true && shot.CapturedImage != null)
+                App.OpenBitmap(shot.CapturedImage, $"屏幕截图 - {mode}");
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"截图功能启动失败：{ex.Message}", AppInfo.Name,
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
     }
+
+    private void ShotButton_Click(object sender, RoutedEventArgs e) => ShotMenu.IsOpen = true;
+    private void ShotFull_Click(object sender, RoutedEventArgs e) => StartScreenshot(ScreenshotMode.FullScreen);
+    private void ShotWindow_Click(object sender, RoutedEventArgs e) => StartScreenshot(ScreenshotMode.Window);
+    private void ShotRegion_Click(object sender, RoutedEventArgs e) => StartScreenshot(ScreenshotMode.Region);
+    private void ShotFree_Click(object sender, RoutedEventArgs e) => StartScreenshot(ScreenshotMode.Freeform);
 
     // ---------------- badge quick controls ----------------
 
-    private void ToolBadgeName_Click(object sender, RoutedEventArgs e)
+    private const string BadgeTagLine = "line:";
+    private const string BadgeTagStyle = "style:";
+    private const string BadgeTagSize = "size:";
+    private const string BadgeTagOpacity = "opacity:";
+    private const string BadgeTagColor = "color:";
+
+    private void BuildToolBadgeMenu()
     {
-        var order = new[]
+        AddBadgeRow("线型", new[]
         {
-            AnnotationTool.Line, AnnotationTool.Wave, AnnotationTool.DoubleLine,
-            AnnotationTool.Freehand, AnnotationTool.Circle
+            ("直线", BadgeTagLine + AnnotationTool.Line), ("波浪", BadgeTagLine + AnnotationTool.Wave),
+            ("双线", BadgeTagLine + AnnotationTool.DoubleLine), ("自由画", BadgeTagLine + AnnotationTool.Freehand),
+            ("圈注", BadgeTagLine + AnnotationTool.Circle)
+        });
+        AddBadgeRow("笔触", new[]
+        {
+            ("标准平滑", BadgeTagStyle + InkStrokeStyle.Standard),
+            ("手绘质感", BadgeTagStyle + InkStrokeStyle.HandDrawn)
+        });
+        AddBadgeRow("线径", new[]
+        {
+            ("1 px", BadgeTagSize + "1"), ("2 px", BadgeTagSize + "2"), ("4 px", BadgeTagSize + "4"),
+            ("7 px", BadgeTagSize + "7"), ("11 px", BadgeTagSize + "11")
+        });
+        AddBadgeRow("透明度", new[]
+        {
+            ("35%", BadgeTagOpacity + "0.35"), ("55%", BadgeTagOpacity + "0.55"),
+            ("80%", BadgeTagOpacity + "0.8"), ("100%", BadgeTagOpacity + "1"),
+            ("高亮", BadgeTagOpacity + "highlight")
+        });
+        AddBadgeRow("颜色", new[]
+        {
+            ("红", BadgeTagColor + "240,72,72"), ("橙", BadgeTagColor + "244,140,52"),
+            ("黄", BadgeTagColor + "236,200,56"), ("绿", BadgeTagColor + "80,206,108"),
+            ("蓝", BadgeTagColor + "64,150,246"), ("白", BadgeTagColor + "244,246,250"),
+            ("调色板…", BadgeTagColor + "palette")
+        });
+    }
+
+    private void AddBadgeRow(string title, (string Label, string Tag)[] choices)
+    {
+        var caption = new TextBlock
+        {
+            Text = title,
+            Foreground = (System.Windows.Media.Brush)FindResource("ThemeAccentBrush"),
+            FontSize = 10,
+            Margin = new Thickness(2, 6, 2, 4)
         };
-        var idx = Array.IndexOf(order, _annotationTool);
-        var next = order[(idx + 1) % order.Length];
-        SetAnnotationTool(next);
-        ShowToolBadge();
-    }
-
-    private void ToolBadgeSize_Click(object sender, RoutedEventArgs e)
-    {
-        var sizes = new double[] { 1, 2, 3, 5, 8, 12 };
-        if (_annotationTool is AnnotationTool.EraserFree or AnnotationTool.EraserClick)
+        ToolBadgeMenuItems.Children.Add(caption);
+        var panel = new WrapPanel { Margin = new Thickness(0, 0, 0, 2) };
+        foreach (var (label, tag) in choices)
         {
-            var idx = Array.IndexOf(sizes, _eraserSize);
-            _eraserSize = sizes[(idx + 1) % sizes.Length];
+            var button = new System.Windows.Controls.Button
+            {
+                Content = label,
+                Tag = tag,
+                FontSize = 10,
+                Padding = new Thickness(6, 3, 6, 3),
+                Margin = new Thickness(2),
+                Background = new SolidColorBrush(Color.FromArgb(70, 255, 255, 255)),
+                Foreground = (System.Windows.Media.Brush)FindResource("ThemeTextBrush"),
+                BorderThickness = new Thickness(0),
+                Cursor = Cursors.Hand
+            };
+            button.Click += BadgeChoice_Click;
+            panel.Children.Add(button);
         }
-        else
-        {
-            var idx = Array.IndexOf(sizes, _annotationSize);
-            _annotationSize = idx < 0 ? 3 : sizes[(idx + 1) % sizes.Length];
-        }
-        ShowToolBadge();
+        ToolBadgeMenuItems.Children.Add(panel);
     }
 
-    private void ToolBadgeOpacity_Click(object sender, RoutedEventArgs e)
+    private void BadgeChoice_Click(object sender, RoutedEventArgs e)
     {
-        var steps = new double[] { 0.35, 0.55, 0.8, 1.0 };
-        var idx = Array.FindIndex(steps, s => Math.Abs(s - _annotationOpacity) < 0.02);
-        SetOpacity(steps[(idx + 1) % steps.Length], false);
+        var tag = (sender as System.Windows.Controls.Button)?.Tag as string ?? string.Empty;
+        if (tag.StartsWith(BadgeTagLine, StringComparison.Ordinal) &&
+            Enum.TryParse<AnnotationTool>(tag[BadgeTagLine.Length..], out var tool))
+            SetAnnotationTool(tool);
+        else if (tag.StartsWith(BadgeTagStyle, StringComparison.Ordinal) &&
+                 Enum.TryParse<InkStrokeStyle>(tag[BadgeTagStyle.Length..], out var style))
+            _annotationLineStyle = style;
+        else if (tag.StartsWith(BadgeTagSize, StringComparison.Ordinal) &&
+                 double.TryParse(tag[BadgeTagSize.Length..], out var size))
+        {
+            if (_annotationTool is AnnotationTool.EraserFree or AnnotationTool.EraserClick) _eraserSize = size;
+            else _annotationSize = size;
+        }
+        else if (tag.StartsWith(BadgeTagOpacity, StringComparison.Ordinal))
+        {
+            var value = tag[BadgeTagOpacity.Length..];
+            if (value == "highlight") SetOpacity(_annotationOpacity, !_annotationHighlighter);
+            else if (double.TryParse(value, out var opacity)) SetOpacity(opacity, false);
+        }
+        else if (tag.StartsWith(BadgeTagColor, StringComparison.Ordinal))
+        {
+            var value = tag[BadgeTagColor.Length..];
+            if (value == "palette") OpenColorPalette();
+            else
+            {
+                var parts = value.Split(',');
+                if (parts.Length == 3 &&
+                    byte.TryParse(parts[0], out var r) && byte.TryParse(parts[1], out var g) && byte.TryParse(parts[2], out var b))
+                {
+                    _annotationColor = Color.FromRgb(r, g, b);
+                    ApplyColorToSelection();
+                }
+            }
+        }
         ShowToolBadge();
     }
 
+    private void ToggleBadgeMenu()
+    {
+        ToolBadgeMenu.Visibility = ToolBadgeMenu.Visibility == Visibility.Visible
+            ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    private void ToolBadgeName_Click(object sender, RoutedEventArgs e) => ToggleBadgeMenu();
+    private void ToolBadgeSize_Click(object sender, RoutedEventArgs e) => ToggleBadgeMenu();
+    private void ToolBadgeOpacity_Click(object sender, RoutedEventArgs e) => ToggleBadgeMenu();
     private void ToolBadgeColorDot_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
-        OpenColorPalette();
+        ToggleBadgeMenu();
         e.Handled = true;
     }
 

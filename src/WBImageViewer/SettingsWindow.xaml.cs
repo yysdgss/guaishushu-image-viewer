@@ -14,9 +14,12 @@ namespace WBImageViewer;
 
 public partial class SettingsWindow : Window
 {
-    public SettingsWindow()
+    private readonly bool _aiFocus;
+
+    public SettingsWindow(bool aiFocus = false)
     {
         InitializeComponent();
+        _aiFocus = aiFocus;
         TopmostCoordinator.Register(this);
 
         var settings = App.Settings;
@@ -27,6 +30,7 @@ public partial class SettingsWindow : Window
         TopMostBox.Text = settings.ToggleTopMostHotkey;
         FitWindowBox.Text = settings.FitWindowToImageHotkey;
         FitImageBox.Text = settings.FitImageToWindowHotkey;
+        ScreenshotBox.Text = settings.ScreenshotHotkey;
         SelectByTag(WheelModifierBox, settings.WheelWindowModifiers);
         ZoomStepBox.Text = settings.ZoomStep.ToString(CultureInfo.InvariantCulture);
         CornerRadiusBox.Text = settings.CornerRadius.ToString(CultureInfo.InvariantCulture);
@@ -40,17 +44,25 @@ public partial class SettingsWindow : Window
         AiKeyBox.Text = settings.AiKey;
         AiLanguageBox.Text = settings.AiTargetLanguage;
 
-        foreach (var box in new[] { TopMostBox, FitWindowBox, FitImageBox })
+        foreach (var box in new[] { TopMostBox, FitWindowBox, FitImageBox, ScreenshotBox })
             box.PreviewKeyDown += HotkeyBox_PreviewKeyDown;
 
         CheckAllConflicts();
+        Loaded += (_, _) => { if (_aiFocus) FocusAiSection(); };
+    }
+
+    public void FocusAiSection()
+    {
+        AiSection.BorderBrush = System.Windows.Media.Brushes.DeepSkyBlue;
+        AiKeyBox.Focus();
     }
 
     private (TextBox Box, TextBlock Status, string Current)[] HotkeyRows => new[]
     {
         (TopMostBox, TopMostConflict, App.Settings.ToggleTopMostHotkey),
         (FitWindowBox, FitWindowConflict, App.Settings.FitWindowToImageHotkey),
-        (FitImageBox, FitImageConflict, App.Settings.FitImageToWindowHotkey)
+        (FitImageBox, FitImageConflict, App.Settings.FitImageToWindowHotkey),
+        (ScreenshotBox, ScreenshotConflict, App.Settings.ScreenshotHotkey)
     };
 
     private void CheckAllConflicts()
@@ -202,20 +214,22 @@ public partial class SettingsWindow : Window
         var topMost = TopMostBox.Text.Trim();
         var fitWindow = FitWindowBox.Text.Trim();
         var fitImage = FitImageBox.Text.Trim();
+        var screenshot = ScreenshotBox.Text.Trim();
 
         if (!HotkeySpec.TryParse(topMost, out _, out _) ||
             !HotkeySpec.TryParse(fitWindow, out _, out _) ||
-            !HotkeySpec.TryParse(fitImage, out _, out _))
+            !HotkeySpec.TryParse(fitImage, out _, out _) ||
+            !HotkeySpec.TryParse(screenshot, out _, out _))
         {
             MessageBox.Show("快捷键必须包含 Shift / Ctrl / Alt 中至少一个修饰键，以及一个普通按键。",
                 "设置无效", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
-        var hotkeys = new[] { topMost, fitWindow, fitImage };
-        if (hotkeys.Distinct(StringComparer.OrdinalIgnoreCase).Count() != 3)
+        var hotkeys = new[] { topMost, fitWindow, fitImage, screenshot };
+        if (hotkeys.Distinct(StringComparer.OrdinalIgnoreCase).Count() != hotkeys.Length)
         {
-            MessageBox.Show("三个全局快捷键不能重复。", "设置无效",
+            MessageBox.Show("全局快捷键不能重复。", "设置无效",
                 MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
@@ -278,6 +292,7 @@ public partial class SettingsWindow : Window
             ToggleTopMostHotkey = topMost,
             FitWindowToImageHotkey = fitWindow,
             FitImageToWindowHotkey = fitImage,
+            ScreenshotHotkey = screenshot,
             WheelWindowModifiers = SelectedTag(WheelModifierBox) ?? "Ctrl",
             ZoomStep = step,
             CornerRadius = radius,

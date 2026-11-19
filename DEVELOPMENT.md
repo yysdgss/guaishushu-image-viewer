@@ -19,9 +19,9 @@
 | 软件名称 | 怪叔叔看图 |
 | 产品常量 | `AppInfo.Name = "怪叔叔看图"` |
 | 程序集名 | `GuaishushuViewer` |
-| 当前版本 | `1.2.0` |
+| 当前版本 | `4.0.0` |
 | 仓库 | `https://github.com/yysdgss/guaishushu-image-viewer` |
-| Release | `https://github.com/yysdgss/guaishushu-image-viewer/releases/tag/v1.2.0` |
+| Release | `https://github.com/yysdgss/guaishushu-image-viewer/releases/tag/v4.0.0` |
 | 许可 | MIT |
 | 目标框架 | `net10.0-windows` |
 | UI 框架 | WPF |
@@ -48,7 +48,7 @@
     <AssemblyName>GuaishushuViewer</AssemblyName>
     <RootNamespace>WBImageViewer</RootNamespace>
     <ApplicationIcon>Assets\app.ico</ApplicationIcon>
-    <Version>1.2.0</Version>
+    <Version>4.0.0</Version>
     <AssemblyVersion>1.2.0.0</AssemblyVersion>
     <FileVersion>1.2.0.0</FileVersion>
     <Product>怪叔叔看图</Product>
@@ -3442,9 +3442,80 @@ RedrawAnnotations();
 - **需求**：画线工具钢笔光标，橡皮擦工具橡皮擦光标。
 - **实现**：生成 `Resources/pen.cur`（斜置钢笔 + 银色笔尖）与 `eraser.cur`（粉色橡皮块 + 白色擦头），以 `EmbeddedResource` + `LogicalName` 嵌入；`CursorFactory` 从程序集流加载，失败回退 `Cursors.Pen`/`Cursors.Cross`；`SetToolCursor()` 按工具设置光标（画线族用钢笔、擦除族用橡皮、移动用 SizeAll）（R90）。
 
+### R91 右上按钮与空画布提示配色
+
+- **需求**：右上角图钉/关闭面板与整体不协调；空画布提示文字与背景太接近。
+- **实现**：`App.xaml` 新增统一主题资源（石墨玻璃 `#353537`、白色描边、冷蓝强调色）；`ActionPanelShape` 改为与灵动岛一致的 `#F2353537`／置顶态 `#F23A3D40`，图钉光晕改冷蓝；关闭按钮 hover 改主题蓝而非整块白遮罩。空画布 `Hint` 改为带石墨玻璃底、白描边、白正文和蓝色副提示的胶囊面板（R91）。
+
+### R92 罗盘配色与同层三态高亮
+
+- **需求**：罗盘 UI 与系统风格统一；同一层级选中后仅降低同级其他项，外层已激活项保持正常。
+- **实现**：`CNode` 分类色改为主题蓝/紫/青/暖/玫红，`CreateSectorPath()` 以石墨底色 + 强调色微染渲染，激活项为唯一高亮扇区；`RebuildCompass()` 按 `ringHasSelection` 降级同层非选中项，`isBreadcrumb` 保持外层正常亮度；`_compassPreviewRing` 使预览层用半透明虚线扇区（R92）。
+
+### R93 连线触发外层与预览保护
+
+- **需求**：连线允许触发最外层菜单；被线触发且带下级的项仅半透明预览，下级不可被线触发。
+- **实现**：新增 `_compassTrigger[]`（Pointer/Line）与 `_compassPreviewRing`；`UpdateCompass()` 在鼠标离开扇区时用线与最外层中线的交点角度选中该项，标记 Line；带下级则设置 preview ring 并在 `HandleCompassUp()` 中禁止触发分组节点；鼠标真正落入下级扇区时转为 Pointer 正常激活（R93）。
+
+### R94 工具徽标选择面板与选中高亮
+
+- **需求**：左下角悬停遮罩突兀；线型/线径/透明度/颜色要向上弹出选择菜单，点击颜色要能调色；涂鸦选中对象要更醒目。
+- **实现**：`MainWindow.xaml` 用 Grid 承载 `ToolBadgeMenu` 与徽标；`BuildToolBadgeMenu()` 以代码生成五组选择按钮，颜色包含“调色板…”并接入 `OpenColorPalette()`；悬停仅改边框为 `#AA6CB6FF`。`AnnotationStroke.CreateVisual()` 增加青色柔光、虚线包围框与端点手柄，填充/文字卡片增加选中标记（R94）。
+
+### R95 涂鸦与图片绝对绑定
+
+- **需求**：缩放后涂鸦不错位，大小与位置跟随图片。
+- **实现**：笔迹坐标保持归一化，`Thickness` 改为源图像素单位；`ViewScale` 将宽度换算到屏幕；手绘抖动改为在图像像素空间用固定 seed 生成，绘制中 seed 不变（`_draftSeed`）；文字卡片字号与填充标记按 `ViewScale` 缩放；`.gjpg` 增加 `Style` 字段（R95）。
+
+### R96 标准线与稳定笔触
+
+- **需求**：画线不跳动；新增标准平滑线，单线/双线/波浪/圆圈都跟随线型。
+- **实现**：`InkStrokeStyle` + `PathLine/PathWave/PathDouble/PathCircle` 在图像像素空间生成几何；Standard 使用二次中点平滑的 `Path.Stroke`，HandDrawn 使用固定种子的可变宽度 ribbon；罗盘、徽标、元素线型菜单均可切换；`GjpgService` 持久化线型（R96）。
+
+### R97 AI 配置入口与未配置提示
+
+- **需求**：罗盘 AI 增加配置菜单；未配置 API 时提示而非静默失败。
+- **实现**：AI 分组新增“配置”→ `App.ShowAiSettings()`；`SettingsWindow(bool aiFocus)` 高亮 AI 分区并聚焦密钥框；`BeginRegionAction()` 先检查 `AiService.IsConfigured`，未配置则提示并跳转设置；框选裁剪修正为减去图片左上角偏移（R97）。
+
+### R98 全场景截图与全局快捷键
+
+- **需求**：三套罗盘、顶部岛、后台快捷键都提供截图；菜单含全屏/窗口/矩形/自由区。
+- **实现**：`ScreenshotMode` 四模式；`ScreenshotWindow` 重写，支持全屏直选、枚举顶层窗口点选、矩形拖动、自由封闭区裁剪；`ShotButton` 上下文菜单与 `ScreenshotGroup()` 在三个罗盘树中复用；`HotkeyAction.ScreenshotRegion` + `ScreenshotHotkey` 设置项（默认 Shift+Ctrl+Alt+X）；GDI 捕获异常统一提示不退出（R98）。
+
+### R99 截图崩溃修复
+
+- **需求**：截图导致软件崩溃退出。
+- **实现**：`HandleCompassUp()` 先关闭罗盘并释放鼠标捕获，再执行可能打开模态对话框的命令；`StartScreenshot()` 捕获所有异常并使用安全 Owner；截图窗口所有 GDI/位图转换路径包 try/catch（R99）。
+
+### R100 底部幻灯片岛与左右翻页
+
+- **需求**：左右边缘上一张/下一张；底部小白条悬停展开半透明工具栏，中间大两侧小，滚轮滚动，点击全屏展开。
+- **实现**：新增 `MainWindow.Filmstrip.cs` 与 `FilmstripHost/Bar/List`；`SetPlaylist()` 支持拖入批次优先，否则读取当前目录；`SyncPlaylistForCurrentImage()` 自动同步；缩略图按需生成并冻结；`PreviewMouseWheel` 横向滚动；左右 `PrevZone/NextZone` 悬停显现并翻页；鼠标按下时排除这些交互区，避免与平移冲突（R100）。
+
+### R101 快捷键设置扩展
+
+- **需求**：后台提供截图快捷键设置并支持全局。
+- **实现**：设置窗口增加第四行快捷键输入与冲突提示，`HotkeyHost` 注册 id=4 的 `ScreenshotRegion`，保存时参与必填与重复校验（R101）。
+
+### R102 协同置顶与罗盘/徽标状态同步
+
+- **需求**：工具状态在罗盘与徽标间保持一致。
+- **实现**：`SetLineStyle()` 同时更新全局线型与选中笔迹样式；`ShowToolBadge()` 显示当前标准/手绘模式与框选识别/翻译状态；所有罗盘动作在捕获释放后统一调用并刷新徽标（R102）。
+
 ---
 
 ## 11. 版本变更记录
+
+### 4.0.0（2026-11-19）
+
+- 主题配色统一：右上按钮、空画布提示、罗盘三套菜单全部改为石墨玻璃 + 白描边 + 冷强调色（R91/R92）。
+- 罗盘同层三态与连线触发外层/下层预览保护（R92/R93）。
+- 工具徽标上弹选择菜单、内置调色板入口、选中对象高亮（R94）。
+- 涂鸦与图片绝对绑定，标准/手绘双线型且绘制稳定（R95/R96）。
+- AI 配置入口、未配置提示与框选区域修复（R97）。
+- 全场景四模式截图、全局截图快捷键与截图崩溃修复（R98/R99/R101）。
+- 底部幻灯片岛、目录/拖入批次轮播与左右翻页区（R100）。
+- 编译 0 警告 0 错误；主程序与安装器均通过 Release 构建。
 
 ### 3.0.0（2026-11-19）
 

@@ -2,8 +2,10 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using System.Windows.Shapes;
 using Color = System.Windows.Media.Color;
 using Point = System.Windows.Point;
+using Brushes = System.Windows.Media.Brushes;
 
 namespace WBImageViewer.Models;
 
@@ -26,16 +28,30 @@ internal sealed class AnnotationFill
     private int _cacheW;
     private int _cacheH;
 
-    public UIElement? CreateVisual()
+    public UIElement? CreateVisual(bool selected = false, Point? seedViewport = null)
     {
         if (_cache == null) return null;
+        var host = new Canvas { IsHitTestVisible = false };
         var image = new System.Windows.Controls.Image
         {
             Source = _cache,
             Stretch = Stretch.Fill,
             IsHitTestVisible = false
         };
-        return image;
+        host.Children.Add(image);
+        if (selected)
+        {
+            var marker = new Ellipse
+            {
+                Width = 15, Height = 15,
+                Fill = new SolidColorBrush(Color.FromArgb(90, 108, 182, 255)),
+                Stroke = Brushes.White, StrokeThickness = 2, IsHitTestVisible = false
+            };
+            Canvas.SetLeft(marker, (seedViewport?.X ?? 0) - 7.5);
+            Canvas.SetTop(marker, (seedViewport?.Y ?? 0) - 7.5);
+            host.Children.Add(marker);
+        }
+        return host;
     }
 
     public bool HitTest(Point viewportPoint, Func<Point, Point> seedToViewport, double radius)
@@ -118,16 +134,30 @@ internal sealed class AnnotationText
     public string Kind { get; set; } = "translate"; // translate | ocr
     public double Opacity { get; set; } = 1.0;
 
-    public UIElement CreateVisual(Func<Point, Point> toViewport, double viewWidth, bool selected)
+    public UIElement CreateVisual(Func<Point, Point> toViewport, double viewWidth, bool selected, double scale = 1)
     {
         var tl = toViewport(TopLeft);
+        var s = Math.Clamp(scale, 0.35, 4);
+        var host = new Canvas { IsHitTestVisible = false };
+        if (selected)
+        {
+            var glow = new Border
+            {
+                Background = new SolidColorBrush(Color.FromArgb(70, 108, 182, 255)),
+                CornerRadius = new CornerRadius(9), Padding = new Thickness(7),
+                IsHitTestVisible = false
+            };
+            Canvas.SetLeft(glow, tl.X - 7);
+            Canvas.SetTop(glow, tl.Y - 7);
+            host.Children.Add(glow);
+        }
         var border = new Border
         {
             Background = new SolidColorBrush(Color.FromArgb(225, 18, 22, 30)),
             BorderBrush = new SolidColorBrush(selected ? Color.FromRgb(255, 200, 80) : Color.FromRgb(90, 160, 230)),
             BorderThickness = new Thickness(selected ? 2 : 1),
             CornerRadius = new CornerRadius(5),
-            Padding = new Thickness(7, 5, 7, 5),
+            Padding = new Thickness(7 * s, 5 * s, 7 * s, 5 * s),
             Opacity = Opacity,
             IsHitTestVisible = false
         };
@@ -135,21 +165,22 @@ internal sealed class AnnotationText
         stack.Children.Add(new TextBlock
         {
             Text = Kind == "ocr" ? "文字识别" : "翻译",
-            FontSize = 9,
+            FontSize = 9 * s,
             Foreground = new SolidColorBrush(Color.FromRgb(120, 190, 255))
         });
         stack.Children.Add(new TextBlock
         {
             Text = Text,
-            FontSize = 12,
+            FontSize = 12 * s,
             Foreground = System.Windows.Media.Brushes.White,
             TextWrapping = TextWrapping.Wrap,
-            MaxWidth = Math.Max(80, viewWidth * Width - 20)
+            MaxWidth = Math.Max(80, viewWidth * Width - 20 * s)
         });
         border.Child = stack;
         Canvas.SetLeft(border, tl.X);
         Canvas.SetTop(border, tl.Y);
-        return border;
+        host.Children.Add(border);
+        return host;
     }
 
     public bool HitTest(Point viewportPoint, Func<Point, Point> toViewport, double viewWidth, double viewHeight, double radius)

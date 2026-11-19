@@ -62,6 +62,7 @@
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
             <TextBlock Grid.Row="0" Grid.Column="0" Text="切换置顶显示" VerticalAlignment="Center" />
@@ -91,6 +92,12 @@
                 <ComboBoxItem Content="Ctrl + Alt" Tag="Ctrl+Alt" />
                 <ComboBoxItem Content="Shift + Alt" Tag="Shift+Alt" />
             </ComboBox>
+
+            <TextBlock Grid.Row="4" Grid.Column="0" Text="全局截图（矩形）" VerticalAlignment="Center" />
+            <StackPanel Grid.Row="4" Grid.Column="1" Margin="0,0,0,5">
+                <TextBox x:Name="ScreenshotBox" />
+                <TextBlock x:Name="ScreenshotConflict" FontSize="10" Foreground="#FF6B7280" IsHitTestVisible="False" />
+            </StackPanel>
         </Grid>
 
         <TextBlock Text="滚轮缩放步长（大于 1，例如 1.2）" FontWeight="SemiBold" Margin="0,0,0,6" />
@@ -131,7 +138,10 @@
             <TextBox x:Name="PenWidthBox" Grid.Column="1" />
         </Grid>
 
-        <TextBlock Text="大模型 API（截图 / 框选翻译、文字识别，兼容 OpenAI 格式）" FontWeight="SemiBold" Margin="0,4,0,6" />
+        <Border x:Name="AiSection" CornerRadius="8" BorderThickness="1" BorderBrush="Transparent"
+                Padding="8" Margin="0,4,0,14">
+        <StackPanel>
+        <TextBlock Text="大模型 API（截图 / 框选翻译、文字识别，兼容 OpenAI 格式）" FontWeight="SemiBold" Margin="0,0,0,6" />
         <Grid Margin="0,0,0,6">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="190" />
@@ -164,7 +174,10 @@
             <TextBlock Text="翻译目标语言" VerticalAlignment="Center" />
             <TextBox x:Name="AiLanguageBox" Grid.Column="1" />
         </Grid>
-        <Button Content="测试 API 连接" HorizontalAlignment="Left" Padding="12,6" Margin="0,0,0,14" Click="TestAi_Click" />
+        <Button Content="测试 API 连接" HorizontalAlignment="Left" Padding="12,6" Margin="0,0,0,4" Click="TestAi_Click" />
+        <TextBlock Text="未配置时，罗盘中的 AI 识别 / 翻译会提示并跳转到这里。" Foreground="#FF6B7280" FontSize="11" />
+        </StackPanel>
+        </Border>
 
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
             <Button Content="保存" Width="88" Padding="10,6" IsDefault="True" Click="Save_Click" />

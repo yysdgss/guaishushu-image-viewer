@@ -2,6 +2,17 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <Application.Resources>
+        <!-- Shared "Dynamic Island" palette: graphite glass, white hairline, cool accent. -->
+        <Color x:Key="ThemePanelColor">#353537</Color>
+        <Color x:Key="ThemeAccentColor">#6CB6FF</Color>
+        <SolidColorBrush x:Key="ThemePanelBrush" Color="#F2353537" />
+        <SolidColorBrush x:Key="ThemePanelSoftBrush" Color="#CC242830" />
+        <SolidColorBrush x:Key="ThemeStrokeBrush" Color="#FFFFFF" />
+        <SolidColorBrush x:Key="ThemeTextBrush" Color="#FFE8EAED" />
+        <SolidColorBrush x:Key="ThemeMutedTextBrush" Color="#FFC9D1DC" />
+        <SolidColorBrush x:Key="ThemeAccentBrush" Color="#FF6CB6FF" />
+        <SolidColorBrush x:Key="ThemeAccentWarmBrush" Color="#FFFFD166" />
+
         <Style TargetType="TextBox">
             <Setter Property="Padding" Value="6,4" />
             <Setter Property="VerticalContentAlignment" Value="Center" />

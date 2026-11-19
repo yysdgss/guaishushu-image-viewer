@@ -21,7 +21,7 @@
             <Setter Property="Width" Value="30" />
             <Setter Property="Height" Value="28" />
             <Setter Property="Focusable" Value="False" />
-            <Setter Property="Foreground" Value="#FFD7DEE8" />
+            <Setter Property="Foreground" Value="{StaticResource ThemeMutedTextBrush}" />
             <Setter Property="FontSize" Value="15" />
             <Setter Property="FontFamily" Value="Segoe UI Symbol" />
             <Setter Property="Cursor" Value="Hand" />
@@ -33,11 +33,11 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#33FFFFFF" />
-                                <Setter Property="Foreground" Value="#FFFFFFFF" />
+                                <Setter TargetName="Bd" Property="Background" Value="#336CB6FF" />
+                                <Setter Property="Foreground" Value="{StaticResource ThemeTextBrush}" />
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#44FFFFFF" />
+                                <Setter TargetName="Bd" Property="Background" Value="#666CB6FF" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -98,38 +98,60 @@
         <Canvas x:Name="CompassLayer" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
                 ClipToBounds="True" IsHitTestVisible="False" />
 
-        <TextBlock x:Name="Hint"
-                   Text="拖入图片，或在资源管理器中双击图片文件"
-                   FontSize="14"
-                   Foreground="#FF7A8290"
-                   HorizontalAlignment="Center"
-                   VerticalAlignment="Center"
-                   IsHitTestVisible="False" />
-
-        <Border x:Name="ToolBadge" HorizontalAlignment="Left" VerticalAlignment="Bottom"
-                Margin="10,0,0,10" Padding="8,4" CornerRadius="6"
-                Background="#E6101216" BorderBrush="#66FFFFFF" BorderThickness="1"
-                Visibility="Collapsed" IsHitTestVisible="True" Cursor="Arrow">
-            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                <Button x:Name="ToolBadgeName" Content="标注：指针" FontSize="11"
-                        Foreground="#FFE8EAED" Background="Transparent" BorderThickness="0"
-                        Padding="2,1" Cursor="Hand" ToolTip="单击切换线段形状"
-                        Click="ToolBadgeName_Click" />
-                <Rectangle Width="1" Height="14" Fill="#44FFFFFF" Margin="4,0" />
-                <Button x:Name="ToolBadgeSize" Content="直径 3" FontSize="11"
-                        Foreground="#FFC9D1DC" Background="Transparent" BorderThickness="0"
-                        Padding="2,1" Cursor="Hand" ToolTip="单击切换笔触直径"
-                        Click="ToolBadgeSize_Click" />
-                <Button x:Name="ToolBadgeOpacity" Content="100%" FontSize="11"
-                        Foreground="#FFC9D1DC" Background="Transparent" BorderThickness="0"
-                        Padding="4,1,2,1" Cursor="Hand" ToolTip="单击切换不透明度"
-                        Click="ToolBadgeOpacity_Click" />
-                <Ellipse x:Name="ToolBadgeColorDot" Width="12" Height="12" Margin="5,0,1,0"
-                         Fill="#FFFF5252" Stroke="#AAFFFFFF" StrokeThickness="1"
-                         Cursor="Hand" MouseLeftButtonUp="ToolBadgeColorDot_Click"
-                         ToolTip="单击打开调色板" />
+        <Border x:Name="Hint" HorizontalAlignment="Center" VerticalAlignment="Center"
+                Padding="18,12" CornerRadius="12" IsHitTestVisible="False"
+                Background="#D6353537" BorderBrush="#99FFFFFF" BorderThickness="1">
+            <Border.Effect>
+                <DropShadowEffect Color="#000000" Opacity="0.35" BlurRadius="12" ShadowDepth="2" />
+            </Border.Effect>
+            <StackPanel>
+                <TextBlock Text="拖入图片，或在资源管理器中双击图片文件"
+                           FontSize="14" Foreground="{StaticResource ThemeTextBrush}"
+                           HorizontalAlignment="Center" />
+                <TextBlock Text="Ctrl + 鼠标右键拖出标注罗盘 · 底部小白条浏览图片"
+                           FontSize="11" Foreground="{StaticResource ThemeAccentBrush}"
+                           HorizontalAlignment="Center" Margin="0,6,0,0" />
             </StackPanel>
         </Border>
+
+        <!-- Compact左下角工具徽标。选择项以向上伸出的小面板给出，悬停只做描边高亮。 -->
+        <Grid HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="10,0,0,10">
+            <Border x:Name="ToolBadgeMenu" Visibility="Collapsed" VerticalAlignment="Bottom"
+                    Margin="0,0,0,40" MaxWidth="330" MaxHeight="260"
+                    Background="#F2353537" BorderBrush="#FFFFFF" BorderThickness="1"
+                    CornerRadius="10" Padding="8">
+                <Border.Effect>
+                    <DropShadowEffect Color="#000000" Opacity="0.5" BlurRadius="14" ShadowDepth="3" />
+                </Border.Effect>
+                <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                    <StackPanel x:Name="ToolBadgeMenuItems" />
+                </ScrollViewer>
+            </Border>
+
+            <Border x:Name="ToolBadge" VerticalAlignment="Bottom" Padding="8,4" CornerRadius="6"
+                    Background="#E6212328" BorderBrush="#66FFFFFF" BorderThickness="1"
+                    Visibility="Collapsed" IsHitTestVisible="True" Cursor="Arrow">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button x:Name="ToolBadgeName" Content="标注：指针" FontSize="11"
+                            Foreground="{StaticResource ThemeTextBrush}" Background="Transparent" BorderThickness="0"
+                            Padding="2,1" Cursor="Hand" ToolTip="线型 / 笔触选择"
+                            Click="ToolBadgeName_Click" />
+                    <Rectangle Width="1" Height="14" Fill="#44FFFFFF" Margin="4,0" />
+                    <Button x:Name="ToolBadgeSize" Content="直径 3" FontSize="11"
+                            Foreground="{StaticResource ThemeMutedTextBrush}" Background="Transparent" BorderThickness="0"
+                            Padding="2,1" Cursor="Hand" ToolTip="线径选择"
+                            Click="ToolBadgeSize_Click" />
+                    <Button x:Name="ToolBadgeOpacity" Content="100%" FontSize="11"
+                            Foreground="{StaticResource ThemeMutedTextBrush}" Background="Transparent" BorderThickness="0"
+                            Padding="4,1,2,1" Cursor="Hand" ToolTip="透明度选择"
+                            Click="ToolBadgeOpacity_Click" />
+                    <Ellipse x:Name="ToolBadgeColorDot" Width="12" Height="12" Margin="5,0,1,0"
+                             Fill="#FFFF5252" Stroke="#AAFFFFFF" StrokeThickness="1"
+                             Cursor="Hand" MouseLeftButtonUp="ToolBadgeColorDot_Click"
+                             ToolTip="颜色与调色板" />
+                </StackPanel>
+            </Border>
+        </Grid>
 
         <!-- Dynamic island: grows directly out of the window's top edge. The top edge sits at
              y=0 flush/tangent with the window border (no outward hairline "tail"), and the two
@@ -189,6 +211,18 @@
                     </Button>
                     <Button x:Name="AdjustButton" Style="{StaticResource IslandButton}" Width="22" Height="22" FontSize="12" Content="◑"
                             ToolTip="图片调整" Click="AdjustButton_Click" />
+                    <Button x:Name="ShotButton" Style="{StaticResource IslandButton}" Width="22" Height="22" FontSize="12" Content="✂"
+                            ToolTip="屏幕截图" Click="ShotButton_Click">
+                        <Button.ContextMenu>
+                            <ContextMenu x:Name="ShotMenu" Background="#F2353537" BorderBrush="#FFFFFF" BorderThickness="1"
+                                         Foreground="#FFE8EAED">
+                                <MenuItem Header="截全屏" Click="ShotFull_Click" />
+                                <MenuItem Header="截指定窗口" Click="ShotWindow_Click" />
+                                <MenuItem Header="截矩形区" Click="ShotRegion_Click" />
+                                <MenuItem Header="自由绘制封闭区" Click="ShotFree_Click" />
+                            </ContextMenu>
+                        </Button.ContextMenu>
+                    </Button>
                     <Button x:Name="SettingsButton" Style="{StaticResource IslandButton}" Width="22" Height="22" FontSize="12" Content="⚙"
                             ToolTip="后台设置" Click="SettingsButton_Click" />
                     <Button x:Name="AboutButton" Style="{StaticResource IslandButton}" Width="22" Height="22" FontSize="12" Content="i"
@@ -236,6 +270,70 @@
             </StackPanel>
         </Border>
 
+        <!-- Left/right page-turn zones (WeChat-like). Only the small chevron is visible at rest. -->
+        <Border x:Name="PrevZone" Width="34" Height="96" HorizontalAlignment="Left" VerticalAlignment="Center"
+                Background="#00000000" Opacity="0.25" Cursor="Hand" ToolTip="上一张"
+                MouseEnter="NavZone_Enter" MouseLeave="NavZone_Leave" MouseLeftButtonUp="PrevZone_Click">
+            <TextBlock Text="‹" FontSize="34" Foreground="{StaticResource ThemeTextBrush}"
+                       HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,0,0,3" />
+        </Border>
+        <Border x:Name="NextZone" Width="34" Height="96" HorizontalAlignment="Right" VerticalAlignment="Center"
+                Background="#00000000" Opacity="0.25" Cursor="Hand" ToolTip="下一张"
+                MouseEnter="NavZone_Enter" MouseLeave="NavZone_Leave" MouseLeftButtonUp="NextZone_Click">
+            <TextBlock Text="›" FontSize="34" Foreground="{StaticResource ThemeTextBrush}"
+                       HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,0,0,3" />
+        </Border>
+
+        <!-- Bottom filmstrip island: a small white bar grows into a translucent carousel. -->
+        <Grid x:Name="FilmstripHost" Width="620" Height="102" HorizontalAlignment="Center" VerticalAlignment="Bottom"
+              IsHitTestVisible="False" Opacity="0" ClipToBounds="True"
+              MouseLeave="FilmstripHost_MouseLeave">
+            <Grid.RenderTransform>
+                <TranslateTransform x:Name="FilmstripSlide" Y="98" />
+            </Grid.RenderTransform>
+            <Border x:Name="FilmstripPanel" Height="96" VerticalAlignment="Bottom" CornerRadius="18,18,0,0"
+                    Background="#E6353537" BorderBrush="#88FFFFFF" BorderThickness="1,1,0,0">
+                <Border.Effect>
+                    <DropShadowEffect Color="#000000" Opacity="0.45" BlurRadius="14" ShadowDepth="2" />
+                </Border.Effect>
+                <Grid Margin="10,4,10,8">
+                    <ListBox x:Name="FilmstripList" Background="Transparent" BorderThickness="0"
+                             ScrollViewer.HorizontalScrollBarVisibility="Hidden"
+                             ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                             SelectionChanged="FilmstripList_SelectionChanged"
+                             PreviewMouseWheel="FilmstripList_PreviewMouseWheel">
+                        <ListBox.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Orientation="Horizontal" />
+                            </ItemsPanelTemplate>
+                        </ListBox.ItemsPanel>
+                        <ListBox.ItemContainerStyle>
+                            <Style TargetType="ListBoxItem">
+                                <Setter Property="Padding" Value="0" />
+                                <Setter Property="Margin" Value="5,0" />
+                                <Setter Property="Background" Value="Transparent" />
+                                <Setter Property="BorderThickness" Value="0" />
+                            </Style>
+                        </ListBox.ItemContainerStyle>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <Border Width="62" Height="58" CornerRadius="8" BorderThickness="2"
+                                        BorderBrush="{Binding Brush}" Background="#22161920">
+                                    <Image Source="{Binding Thumbnail}" Stretch="UniformToFill"
+                                           IsHitTestVisible="False" ClipToBounds="True" />
+                                </Border>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                    <TextBlock x:Name="FilmstripCounter" Text="0 / 0" Foreground="{StaticResource ThemeMutedTextBrush}"
+                               FontSize="10" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-2,2,0" />
+                </Grid>
+            </Border>
+        </Grid>
+        <Border x:Name="FilmstripBar" Width="120" Height="4" HorizontalAlignment="Center" VerticalAlignment="Bottom"
+                CornerRadius="2,2,0,0" Background="#D6FFFFFF" Cursor="Hand" ToolTip="悬停浏览本目录图片"
+                MouseEnter="FilmstripBar_MouseEnter" MouseLeave="FilmstripBar_MouseLeave" />
+
         <!-- Top-right slide-out panel. One island-shaped surface carries both
              actions; the pushpin and close are two buttons hosted on that panel. -->
         <Grid x:Name="CloseHost" Width="62" Height="30" HorizontalAlignment="Right"
@@ -248,13 +346,13 @@
                 <Grid x:Name="ActionPanel" Width="62" Height="30">
                     <Path x:Name="ActionPanelShape" Stretch="Fill"
                           Data="M 2,0 H 60 C 58.2,0 56,1.8 56,4 V 22 C 56,26.4 52.4,30 48,30 H 14 C 9.6,30 6,26.4 6,22 V 4 C 6,1.8 3.8,0 2,0 Z"
-                          Stroke="#66FFFFFF" StrokeThickness="0.8">
+                          Stroke="#FFFFFF" StrokeThickness="1">
                         <Path.Style>
                             <Style TargetType="Path">
-                                <Setter Property="Fill" Value="#CC242830" />
+                                <Setter Property="Fill" Value="#F2353537" />
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding Tag, ElementName=PinButton}" Value="Pinned">
-                                        <Setter Property="Fill" Value="#FF8A5A12" />
+                                        <Setter Property="Fill" Value="#F23A3D40" />
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
@@ -280,7 +378,7 @@
                                     <Grid Background="Transparent">
                                         <Ellipse x:Name="PinHalo" Width="19" Height="19"
                                                  HorizontalAlignment="Center" VerticalAlignment="Center"
-                                                 Fill="#FFFFD166" Opacity="0.42">
+                                                 Fill="{StaticResource ThemeAccentBrush}" Opacity="0.42">
                                             <Ellipse.Effect>
                                                 <BlurEffect Radius="6" />
                                             </Ellipse.Effect>
@@ -328,16 +426,16 @@
                                         <Rectangle x:Name="CloseHover" RadiusX="5" RadiusY="5"
                                                    Fill="#00FFFFFF" />
                                         <TextBlock x:Name="CloseGlyph" Text="×" FontSize="18"
-                                                   Foreground="#FFE8EAED" HorizontalAlignment="Center"
+                                                   Foreground="{StaticResource ThemeTextBrush}" HorizontalAlignment="Center"
                                                    VerticalAlignment="Center" Margin="0,-1,0,0" />
                                     </Grid>
                                     <ControlTemplate.Triggers>
                                         <Trigger Property="IsMouseOver" Value="True">
-                                            <Setter TargetName="CloseHover" Property="Fill" Value="#44FFFFFF" />
+                                            <Setter TargetName="CloseHover" Property="Fill" Value="#336CB6FF" />
                                             <Setter TargetName="CloseGlyph" Property="Foreground" Value="#FFFFFFFF" />
                                         </Trigger>
                                         <Trigger Property="IsPressed" Value="True">
-                                            <Setter TargetName="CloseHover" Property="Fill" Value="#66FFFFFF" />
+                                            <Setter TargetName="CloseHover" Property="Fill" Value="#666CB6FF" />
                                         </Trigger>
                                     </ControlTemplate.Triggers>
                                 </ControlTemplate>

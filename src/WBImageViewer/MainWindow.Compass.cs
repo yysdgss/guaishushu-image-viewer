@@ -29,10 +29,13 @@ public partial class MainWindow
         EraserFree, EraserClick, EraserBigger, EraserSmaller,
         Size1, Size2, Size3, Size4, Size5,
         SetColor, OpenPalette, ColorCycle, ClearAll,
+        StandardLine, HandDrawnLine,
         OpacityHighlight, OpacityHalf, OpacitySolid, HighlighterToggle,
-        RegionTranslate, RegionOcr,
+        RegionTranslate, RegionOcr, AiConfig,
         // canvas context
-        OpenImage, SaveImage, SaveAs, Screenshot, ToggleTopMost, Settings, About, ExitTool,
+        OpenImage, SaveImage, SaveAs, ToggleTopMost, Settings, About, ExitTool,
+        // screenshot (available in every context)
+        ShotFull, ShotWindow, ShotRect, ShotFree,
         // element context
         DeleteElement, DuplicateElement, ElemLine, ElemWave, ElemDouble,
         ElemThicker, ElemThinner
@@ -66,6 +69,13 @@ public partial class MainWindow
     private static readonly double[] CompassRingInner = { 34, 74, 114, 154 };
     private static readonly double[] CompassRingOuter = { 70, 110, 150, 190 };
 
+    // Theme accents: cool graphite UI with restrained blue / violet / amber highlights.
+    private static readonly (byte R, byte G, byte B) ThemeBlue = (108, 182, 255);
+    private static readonly (byte R, byte G, byte B) ThemeViolet = (176, 150, 238);
+    private static readonly (byte R, byte G, byte B) ThemeTeal = (118, 202, 206);
+    private static readonly (byte R, byte G, byte B) ThemeWarm = (235, 194, 116);
+    private static readonly (byte R, byte G, byte B) ThemeRose = (232, 138, 138);
+
     private static CompassNode CNode(string label, string glyph, string desc, byte r, byte g, byte b,
         CompassAction action = CompassAction.None, Color? target = null, IEnumerable<CompassNode>? children = null) =>
         new(label, glyph, desc, Color.FromArgb(236, r, g, b), action, target, children);
@@ -93,20 +103,31 @@ public partial class MainWindow
         CNode("荧光笔", "▤", "切换荧光笔模式", 176, 220, 96, CompassAction.HighlighterToggle)
     };
 
+    private static CompassNode ScreenshotGroup() =>
+        CNode("截图", "✂", "全屏 / 窗口 / 矩形 / 自由区域", ThemeRose.R, ThemeRose.G, ThemeRose.B, children: new[]
+        {
+            CNode("全屏", "▣", "截取整个虚拟屏幕", 216, 132, 112, CompassAction.ShotFull),
+            CNode("窗口", "▢", "单击目标窗口截图", 150, 160, 210, CompassAction.ShotWindow),
+            CNode("矩形", "▭", "拖动框选矩形区域", 108, 182, 255, CompassAction.ShotRect),
+            CNode("自由区", "◌", "手绘封闭区域截图", 176, 150, 238, CompassAction.ShotFree)
+        });
+
     /// <summary>Image context: the full ink toolset.</summary>
     private static List<CompassNode> BuildCompassTree() => new()
     {
-        CNode("形状", "✎", "线条与圈注工具", 92, 150, 210, children: new[]
+        CNode("形状", "✎", "线条与圈注工具", ThemeBlue.R, ThemeBlue.G, ThemeBlue.B, children: new[]
         {
             CNode("直线", "─", "绘制直线", 208, 92, 72, CompassAction.Line),
-            CNode("波浪线", "∿", "绘制波浪线", 72, 152, 196, CompassAction.Wave),
+            CNode("波浪", "∿", "绘制波浪线", 72, 152, 196, CompassAction.Wave),
             CNode("双线", "═", "绘制双线", 132, 92, 196, CompassAction.DoubleLine),
-            CNode("自由画", "✎", "自由手写", 92, 168, 116, CompassAction.Freehand),
+            CNode("自由", "✎", "自由手写", 92, 168, 116, CompassAction.Freehand),
             CNode("圈注", "◯", "手绘圈注", 196, 152, 72, CompassAction.Circle),
-            CNode("填充", "◧", "油漆桶：填充封闭区域", 224, 168, 72, CompassAction.Fill)
+            CNode("填充", "◧", "油漆桶：填充封闭区域", 224, 168, 72, CompassAction.Fill),
+            CNode("标准线", "╌", "平滑标准线型（含波浪、双线、圆圈）", 108, 182, 255, CompassAction.StandardLine),
+            CNode("手绘线", "〰", "手绘笔触线型", 176, 150, 238, CompassAction.HandDrawnLine)
         }),
-        CNode("颜色", "◐", "笔迹颜色 / 调色板", 208, 120, 190, children: ColorLeaves()),
-        CNode("透明", "◑", "不透明度与荧光笔", 150, 180, 210, children: OpacityLeaves()),
+        CNode("颜色", "◐", "笔迹颜色 / 调色板", ThemeViolet.R, ThemeViolet.G, ThemeViolet.B, children: ColorLeaves()),
+        CNode("透明", "◑", "不透明度与荧光笔", ThemeTeal.R, ThemeTeal.G, ThemeTeal.B, children: OpacityLeaves()),
         CNode("粗细", "↕", "笔迹粗细", 96, 140, 168, children: new[]
         {
             CNode("极细", "·", "1 px", 128, 168, 200, CompassAction.Size1),
@@ -122,12 +143,14 @@ public partial class MainWindow
             CNode("擦头＋", "＋", "增大擦头", 96, 168, 196, CompassAction.EraserBigger),
             CNode("擦头－", "－", "减小擦头", 96, 168, 196, CompassAction.EraserSmaller)
         }),
-        CNode("AI", "✧", "框选翻译与文字识别", 176, 110, 210, children: new[]
+        CNode("AI", "✧", "框选翻译、识别与配置", ThemeViolet.R, ThemeViolet.G, ThemeViolet.B, children: new[]
         {
+            CNode("配置", "⚙", "配置大模型接口、密钥与模型", 150, 160, 190, CompassAction.AiConfig),
             CNode("翻译", "文", "框选区域并翻译", 92, 176, 210, CompassAction.RegionTranslate),
             CNode("识别", "◉", "框选区域识别文字（含手写）", 120, 200, 150, CompassAction.RegionOcr)
         }),
-        CNode("工具", "⚙", "指针、移动、清空与退出", 168, 156, 96, children: new[]
+        ScreenshotGroup(),
+        CNode("工具", "⚙", "指针、移动、清空与退出", ThemeWarm.R, ThemeWarm.G, ThemeWarm.B, children: new[]
         {
             CNode("指针", "✥", "返回指针（停止标注）", 82, 116, 168, CompassAction.Pointer),
             CNode("移动", "✜", "拖动已绘制的标注元素", 92, 176, 210, CompassAction.Move),
@@ -140,42 +163,42 @@ public partial class MainWindow
     /// <summary>Canvas context (blank canvas / no image): ordinary software commands.</summary>
     private static List<CompassNode> BuildCanvasCompassTree() => new()
     {
-        CNode("文件", "▤", "打开与保存", 92, 150, 210, children: new[]
+        CNode("文件", "▤", "打开与保存", ThemeBlue.R, ThemeBlue.G, ThemeBlue.B, children: new[]
         {
             CNode("打开", "↥", "打开图片或 .gjpg", 120, 180, 220, CompassAction.OpenImage),
             CNode("保存", "▣", "保存到当前文件（含标注）", 120, 200, 160, CompassAction.SaveImage),
             CNode("另存为", "⇨", "另存为 .gjpg 可编辑工程", 200, 180, 120, CompassAction.SaveAs)
         }),
-        CNode("截图", "✂", "屏幕截图并钉在桌面", 224, 120, 96, children: new[]
-        {
-            CNode("区域截图", "▭", "框选屏幕区域并固定显示", 232, 130, 96, CompassAction.Screenshot)
-        }),
-        CNode("窗口", "▢", "窗口控制", 150, 140, 200, children: new[]
+        ScreenshotGroup(),
+        CNode("窗口", "▢", "窗口控制", ThemeTeal.R, ThemeTeal.G, ThemeTeal.B, children: new[]
         {
             CNode("置顶", "📌", "切换置顶", 220, 180, 90, CompassAction.ToggleTopMost),
             CNode("设置", "⚙", "后台设置", 150, 160, 190, CompassAction.Settings),
             CNode("关于", "i", "关于本软件", 150, 190, 210, CompassAction.About)
         }),
-        CNode("退出", "✕", "关闭罗盘 / 返回正常界面", 200, 88, 88, children: new[] { CNode("返回", "↩", "退出工具", 150, 150, 160, CompassAction.ExitTool) })
+        CNode("退出", "✕", "关闭罗盘 / 返回正常界面", ThemeRose.R, ThemeRose.G, ThemeRose.B, children: new[] { CNode("返回", "↩", "退出工具", 150, 150, 160, CompassAction.ExitTool) })
     };
 
     /// <summary>Element context: edit the element under the pointer.</summary>
     private static List<CompassNode> BuildElementCompassTree() => new()
     {
-        CNode("线型", "═", "仅线段可换形状（含起止端点）", 92, 150, 210, children: new[]
+        CNode("线型", "═", "仅线段可换形状（含起止端点）", ThemeBlue.R, ThemeBlue.G, ThemeBlue.B, children: new[]
         {
             CNode("改直线", "─", "转换为直线", 208, 92, 72, CompassAction.ElemLine),
             CNode("改波浪", "∿", "转换为波浪线", 72, 152, 196, CompassAction.ElemWave),
-            CNode("改双线", "═", "转换为双线", 132, 92, 196, CompassAction.ElemDouble)
+            CNode("改双线", "═", "转换为双线", 132, 92, 196, CompassAction.ElemDouble),
+            CNode("标准线", "╌", "切换为平滑标准线", 108, 182, 255, CompassAction.StandardLine),
+            CNode("手绘线", "〰", "切换为手绘笔触", 176, 150, 238, CompassAction.HandDrawnLine)
         }),
-        CNode("颜色", "◐", "修改元素颜色", 208, 120, 190, children: ColorLeaves()),
-        CNode("透明", "◑", "修改元素不透明度", 150, 180, 210, children: OpacityLeaves()),
+        CNode("颜色", "◐", "修改元素颜色", ThemeViolet.R, ThemeViolet.G, ThemeViolet.B, children: ColorLeaves()),
+        CNode("透明", "◑", "修改元素不透明度", ThemeTeal.R, ThemeTeal.G, ThemeTeal.B, children: OpacityLeaves()),
         CNode("粗细", "↕", "调整元素笔触粗细", 96, 140, 168, children: new[]
         {
             CNode("加粗", "＋", "笔触加粗", 128, 168, 200, CompassAction.ElemThicker),
             CNode("变细", "－", "笔触变细", 128, 168, 200, CompassAction.ElemThinner)
         }),
-        CNode("操作", "⚙", "复制、删除与退出", 168, 156, 96, children: new[]
+        ScreenshotGroup(),
+        CNode("操作", "⚙", "复制、删除与退出", ThemeWarm.R, ThemeWarm.G, ThemeWarm.B, children: new[]
         {
             CNode("复制", "⧉", "复制该元素", 92, 176, 210, CompassAction.DuplicateElement),
             CNode("删除", "✕", "删除该元素", 216, 82, 82, CompassAction.DeleteElement),
@@ -248,7 +271,7 @@ public partial class MainWindow
             if (_fills[i].HitTest(vp, ToViewportSpace, radius))
             { kind = ElementKind.Fill; index = i; return true; }
         for (var i = _annotations.Count - 1; i >= 0; i--)
-            if (_annotations[i].HitTest(vp, ToViewportSpace, radius))
+            if (_annotations[i].HitTest(vp, ToViewportSpace, radius, ViewScale, Math.Max(1, _pixelWidth), Math.Max(1, _pixelHeight)))
             { kind = ElementKind.Stroke; index = i; return true; }
         kind = ElementKind.None;
         index = -1;
@@ -276,20 +299,26 @@ public partial class MainWindow
         if (!_compassOpen) return false;
         UpdateCompass(e.GetPosition(Root));
 
-        // Trigger strictly by the pointer's active ring/sector — the guide line is decorative.
+        // The guide line may select an outer ring, but a group selected by the line is
+        // preview-only: expanding it must never lead to an accidental command.
         var ring = _compassActiveRing;
-        if (ring >= 0 && ring < _compassSelection.Length)
+        CompassNode? pending = null;
+        if (ring >= 0 && ring < _compassSelection.Length &&
+            ring != _compassPreviewRing && _compassTrigger[ring] != CompassTrigger.None)
         {
             var index = _compassSelection[ring];
             if (index >= 0)
             {
                 var node = CompassNodeAt(ring, index);
-                if (node is { IsGroup: false }) InvokeCompass(node);
+                if (node is { IsGroup: false }) pending = node;
             }
         }
         CloseCompass();
         if (IsMouseCaptured) ReleaseMouseCapture();
         e.Handled = true;
+
+        // Dialogs launched from a compass command must start after capture is released.
+        if (pending != null) InvokeCompass(pending);
         return true;
     }
 
@@ -300,6 +329,8 @@ public partial class MainWindow
         _compassPointer = rootPoint;
         _compassSelection = new int[CompassRingInner.Length];
         for (var i = 0; i < _compassSelection.Length; i++) _compassSelection[i] = -1;
+        _compassTrigger = new CompassTrigger[CompassRingInner.Length];
+        _compassPreviewRing = -1;
         _compassOpen = true;
         _draftPointer = imagePoint;
 
@@ -357,8 +388,6 @@ public partial class MainWindow
         foreach (var item in _compassVisuals) CompassLayer.Children.Remove(item);
         _compassVisuals.Clear();
 
-        var anyActive = _compassSelection.Any(i => i >= 0);
-
         // Hub with context label.
         var hubLabel = _compassContext switch
         {
@@ -369,8 +398,8 @@ public partial class MainWindow
         var hub = new Ellipse
         {
             Width = CompassRingInner[0] * 2 - 6, Height = CompassRingInner[0] * 2 - 6,
-            Fill = new SolidColorBrush(Color.FromArgb(246, 18, 21, 28)),
-            Stroke = new SolidColorBrush(Color.FromArgb(200, 255, 255, 255)),
+            Fill = new SolidColorBrush(Color.FromArgb(246, 53, 53, 55)),
+            Stroke = new SolidColorBrush(Color.FromArgb(220, 255, 255, 255)),
             StrokeThickness = 1.2, IsHitTestVisible = false
         };
         hub.Effect = new DropShadowEffect { Color = Colors.Black, BlurRadius = 10, ShadowDepth = 2, Opacity = 0.6 };
@@ -386,16 +415,21 @@ public partial class MainWindow
             var nodes = CompassChildrenAt(ring);
             if (nodes.Count == 0) break;
             var span = 360.0 / nodes.Count;
+            var ringHasSelection = _compassSelection[ring] >= 0;
+            var previewRing = ring == _compassPreviewRing;
             for (var i = 0; i < nodes.Count; i++)
             {
                 var node = nodes[i];
                 var start = i * span - 90 + 1.2;
                 var end = (i + 1) * span - 90 - 1.2;
-                var isActive = _compassSelection[ring] == i && ring == _compassActiveRing;
-                var isBreadcrumb = _compassSelection[ring] == i && ring != _compassActiveRing;
-                var dim = anyActive && !isActive && !isBreadcrumb;
+                var isSelected = _compassSelection[ring] == i;
+                var isPointer = isSelected && _compassTrigger[ring] == CompassTrigger.Pointer;
+                var isLineGroup = isSelected && _compassTrigger[ring] == CompassTrigger.Line && node.IsGroup;
+                var isBreadcrumb = isSelected && ring < _compassActiveRing && !isLineGroup;
+                var isActive = isPointer || isBreadcrumb;
+                var dim = ringHasSelection && !isSelected;
                 var path = CreateSectorPath(_compassOrigin, CompassRingInner[ring], CompassRingOuter[ring],
-                    start, end, node.Accent, isActive, isBreadcrumb, dim);
+                    start, end, node.Accent, isActive, dim, previewRing || isLineGroup);
                 CompassLayer.Children.Add(path);
                 _compassVisuals.Add(path);
 
@@ -403,13 +437,12 @@ public partial class MainWindow
                 var radius = (CompassRingInner[ring] + CompassRingOuter[ring]) / 2;
                 var labelPoint = Polar(_compassOrigin, radius, mid);
                 var glyphSize = ring == 0 ? 14 : 12;
-                var textBrush = isActive
-                    ? Brushes.White
-                    : new SolidColorBrush(Color.FromArgb((byte)(dim ? 120 : 235), 235, 240, 248));
+                var textAlpha = isActive ? (byte)255 : dim ? (byte)95 : previewRing ? (byte)130 : (byte)235;
+                var textBrush = new SolidColorBrush(Color.FromArgb(textAlpha, 238, 243, 250));
                 AddCompassText(node.Glyph, labelPoint.X - 15, labelPoint.Y - 17, 30, 18, glyphSize, textBrush, FontWeights.SemiBold);
                 if (ring <= 1)
                     AddCompassText(node.Label, labelPoint.X - 24, labelPoint.Y - 1, 48, 14, 9,
-                        new SolidColorBrush(Color.FromArgb((byte)(dim ? 105 : 232), 235, 240, 248)), FontWeights.Normal);
+                        new SolidColorBrush(Color.FromArgb(textAlpha, 235, 240, 248)), FontWeights.Normal);
             }
         }
 
@@ -452,7 +485,7 @@ public partial class MainWindow
     }
 
     private Path CreateSectorPath(Point center, double inner, double outer, double start, double end,
-        Color accent, bool active, bool breadcrumb, bool dim)
+        Color accent, bool active, bool dim, bool preview)
     {
         var geometry = new StreamGeometry();
         using (var ctx = geometry.Open())
@@ -464,24 +497,30 @@ public partial class MainWindow
             ctx.ArcTo(Polar(center, inner, start), new Size(inner, inner), 0, false, SweepDirection.Counterclockwise, true, true);
         }
 
-        byte a = active ? (byte)255 : breadcrumb ? (byte)205 : dim ? (byte)92 : accent.A;
-        var boost = active ? 40 : breadcrumb ? 16 : 0;
-        var fade = dim ? 0.55 : 1.0;
-        Color fill;
-        if (active)
-            fill = Color.FromArgb(a, (byte)Math.Min(255, accent.R + boost), (byte)Math.Min(255, accent.G + boost), (byte)Math.Min(255, accent.B + boost));
-        else
-            fill = Color.FromArgb(a,
-                (byte)(accent.R * fade), (byte)(accent.G * fade), (byte)(accent.B * fade));
-        return new Path
+        // All sectors share the graphite island base. Accent only tints it; the active
+        // sector is the single bright item of its level, siblings fade back.
+        var panel = Color.FromRgb(53, 53, 55);
+        var tint = active ? 0.72 : dim ? 0.06 : preview ? 0.12 : 0.22;
+        Color fill = Color.FromArgb(
+            active ? (byte)250 : preview ? (byte)92 : dim ? (byte)76 : (byte)214,
+            Blend(panel.R, accent.R, tint), Blend(panel.G, accent.G, tint), Blend(panel.B, accent.B, tint));
+        var stroke = active
+            ? new SolidColorBrush(Colors.White)
+            : new SolidColorBrush(Color.FromArgb(preview ? (byte)120 : dim ? (byte)45 : (byte)150, 255, 255, 255));
+        var path = new Path
         {
             Data = geometry,
             Fill = new SolidColorBrush(fill),
-            Stroke = new SolidColorBrush(active ? Colors.White : Color.FromArgb((byte)(dim ? 90 : 180), 255, 255, 255)),
-            StrokeThickness = active ? 2 : 0.9,
+            Stroke = stroke,
+            StrokeThickness = active ? 1.8 : 0.9,
             IsHitTestVisible = false
         };
+        if (preview) path.StrokeDashArray = new DoubleCollection { 3, 3 };
+        return path;
     }
+
+    private static byte Blend(byte from, byte to, double amount) =>
+        (byte)Math.Clamp(Math.Round(from + (to - from) * amount), 0, 255);
 
     private static double Hypot(double x, double y) => Math.Sqrt(x * x + y * y);
 
@@ -496,6 +535,38 @@ public partial class MainWindow
     /// ring is open, drifting beyond the compass keeps it; only returning to an inner ring
     /// collapses the deeper rings.
     /// </summary>
+    private void ClearCompassSelection()
+    {
+        for (var r = 0; r < _compassSelection.Length; r++)
+        {
+            _compassSelection[r] = -1;
+            _compassTrigger[r] = CompassTrigger.None;
+        }
+        _compassPreviewRing = -1;
+        _compassActiveRing = -1;
+    }
+
+    private void InvalidateDeeperCompassRings(int ring)
+    {
+        for (var r = ring + 1; r < _compassSelection.Length; r++)
+        {
+            _compassSelection[r] = -1;
+            _compassTrigger[r] = CompassTrigger.None;
+        }
+        _compassPreviewRing = -1;
+    }
+
+    private int DeepestVisibleCompassRing()
+    {
+        var deepest = 0;
+        for (var r = 0; r < _compassSelection.Length; r++)
+        {
+            if (r > 0 && _compassSelection[r - 1] < 0) break;
+            if (CompassChildrenAt(r).Count > 0) deepest = r;
+        }
+        return deepest;
+    }
+
     private void UpdateCompass(Point pointer)
     {
         if (!_compassOpen) return;
@@ -503,63 +574,92 @@ public partial class MainWindow
         var dx = pointer.X - _compassOrigin.X;
         var dy = pointer.Y - _compassOrigin.Y;
         var distance = Hypot(dx, dy);
+        var changed = false;
 
-        // Hub: collapse everything back to the first ring.
+        // Hub: collapse the whole path.
         if (distance < CompassRingInner[0] - 4)
         {
-            var changed = false;
-            for (var r = 0; r < _compassSelection.Length; r++)
-                if (_compassSelection[r] != -1) { _compassSelection[r] = -1; changed = true; }
-            _compassActiveRing = -1;
-            if (changed) RebuildCompass();
+            ClearCompassSelection();
+            RebuildCompass();
             UpdateCompassGuide();
             UpdateCompassTooltip();
             return;
         }
 
-        // Find the ring the pointer actually sits in (pointer position only).
         var pointerRing = -1;
         for (var r = 0; r < CompassRingInner.Length; r++)
         {
             if (distance >= CompassRingInner[r] - 3 && distance <= CompassRingOuter[r] + 6) { pointerRing = r; break; }
         }
-        if (pointerRing < 0)
-        {
-            // Drifted beyond the compass: keep the current expanded path (sticky); only move the line.
-            _compassActiveRing = -1;
-            UpdateCompassGuide();
-            UpdateCompassTooltip();
-            return;
-        }
 
-        var angle = Math.Atan2(dy, dx) * 180 / Math.PI + 90;
-        if (angle < 0) angle += 360;
-
-        // Collapse rings deeper than the pointer's ring only when the pointer moved inward.
-        var changed2 = false;
-        if (_compassActiveRing >= 0 && pointerRing < _compassActiveRing)
+        if (pointerRing >= 0)
         {
-            for (var r = pointerRing + 1; r < _compassSelection.Length; r++)
-                if (_compassSelection[r] != -1) { _compassSelection[r] = -1; changed2 = true; }
-        }
-        _compassActiveRing = pointerRing;
-
-        var nodes = CompassChildrenAt(pointerRing);
-        if (nodes.Count > 0)
-        {
-            var idx = (int)(angle / (360.0 / nodes.Count)) % nodes.Count;
-            if (_compassSelection[pointerRing] != idx)
+            // Real pointer activation. Clear any line-driven preview and act normally.
+            _compassPreviewRing = -1;
+            for (var r = 0; r < _compassTrigger.Length; r++)
+                if (_compassTrigger[r] == CompassTrigger.Line) _compassTrigger[r] = CompassTrigger.None;
+            if (_compassActiveRing >= 0 && pointerRing < _compassActiveRing)
             {
-                _compassSelection[pointerRing] = idx;
-                // Selecting a different node invalidates that branch's children.
-                for (var r = pointerRing + 1; r < _compassSelection.Length; r++)
-                    if (_compassSelection[r] != -1) { _compassSelection[r] = -1; changed2 = true; }
-                changed2 = true;
+                InvalidateDeeperCompassRings(pointerRing);
+                changed = true;
+            }
+            _compassActiveRing = pointerRing;
+            var angle = SectorAngle(pointer);
+            var nodes = CompassChildrenAt(pointerRing);
+            if (nodes.Count > 0)
+            {
+                var idx = (int)(angle / (360.0 / nodes.Count)) % nodes.Count;
+                if (_compassSelection[pointerRing] != idx)
+                {
+                    _compassSelection[pointerRing] = idx;
+                    InvalidateDeeperCompassRings(pointerRing);
+                    changed = true;
+                }
+                else changed |= _compassTrigger[pointerRing] != CompassTrigger.Pointer;
+                _compassTrigger[pointerRing] = CompassTrigger.Pointer;
             }
         }
-        if (changed2) RebuildCompass();
+        else
+        {
+            // Pointer has left the menu: the decorative line may still trigger the
+            // outermost visible ring. A group hit this way becomes preview-only, and
+            // its children are shown but can never be triggered by the line.
+            var ring = DeepestVisibleCompassRing();
+            var nodes = CompassChildrenAt(ring);
+            if (nodes.Count > 0)
+            {
+                var midRadius = (CompassRingInner[ring] + CompassRingOuter[ring]) / 2;
+                var sample = distance > midRadius
+                    ? new Point(_compassOrigin.X + dx * (midRadius / distance),
+                                _compassOrigin.Y + dy * (midRadius / distance))
+                    : pointer;
+                var angle = SectorAngle(sample);
+                var idx = (int)(angle / (360.0 / nodes.Count)) % nodes.Count;
+                if (_compassSelection[ring] != idx)
+                {
+                    _compassSelection[ring] = idx;
+                    InvalidateDeeperCompassRings(ring);
+                    changed = true;
+                }
+                else changed |= _compassTrigger[ring] != CompassTrigger.Line;
+                _compassTrigger[ring] = CompassTrigger.Line;
+                _compassActiveRing = ring;
+
+                var node = nodes[idx];
+                var preview = ring + 1 < CompassRingInner.Length && node.IsGroup ? ring + 1 : -1;
+                if (_compassPreviewRing != preview) { _compassPreviewRing = preview; changed = true; }
+            }
+        }
+
+        if (changed) RebuildCompass();
         UpdateCompassGuide();
         UpdateCompassTooltip();
+    }
+
+    private double SectorAngle(Point point)
+    {
+        var angle = Math.Atan2(point.Y - _compassOrigin.Y, point.X - _compassOrigin.X) * 180 / Math.PI + 90;
+        return angle < 0 ? angle + 360 : angle;
     }
 
     private void UpdateCompassGuide()
@@ -604,6 +704,8 @@ public partial class MainWindow
         _compassOpen = false;
         _compassActiveRing = -1;
         for (var i = 0; i < _compassSelection.Length; i++) _compassSelection[i] = -1;
+        for (var i = 0; i < _compassTrigger.Length; i++) _compassTrigger[i] = CompassTrigger.None;
+        _compassPreviewRing = -1;
         _compassGuideHalo = null;
         _compassGuideFlow = null;
         _compassTooltip = null;
@@ -652,12 +754,18 @@ public partial class MainWindow
             case CompassAction.RegionTranslate: BeginRegionAction(RegionAction.Translate); break;
             case CompassAction.RegionOcr: BeginRegionAction(RegionAction.Ocr); break;
             case CompassAction.ClearAll: ClearAllAnnotations(); break;
+            case CompassAction.StandardLine: SetLineStyle(InkStrokeStyle.Standard); break;
+            case CompassAction.HandDrawnLine: SetLineStyle(InkStrokeStyle.HandDrawn); break;
+            case CompassAction.AiConfig: App.ShowAiSettings(); break;
 
             // Canvas
             case CompassAction.OpenImage: OpenImageDialog(); break;
             case CompassAction.SaveImage: SaveImage(false); break;
             case CompassAction.SaveAs: SaveImage(true); break;
-            case CompassAction.Screenshot: StartScreenshot(); break;
+            case CompassAction.ShotFull: StartScreenshot(ScreenshotMode.FullScreen); break;
+            case CompassAction.ShotWindow: StartScreenshot(ScreenshotMode.Window); break;
+            case CompassAction.ShotRect: StartScreenshot(ScreenshotMode.Region); break;
+            case CompassAction.ShotFree: StartScreenshot(ScreenshotMode.Freeform); break;
             case CompassAction.ToggleTopMost: ExecuteHotkey(HotkeyAction.ToggleTopMost); break;
             case CompassAction.Settings: App.ShowSettings(); break;
             case CompassAction.About: App.ShowAbout(); break;

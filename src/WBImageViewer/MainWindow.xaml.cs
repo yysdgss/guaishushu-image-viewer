@@ -62,6 +62,8 @@ public partial class MainWindow : Window
     private double _eraserSize = 16;
     private double _annotationOpacity = 0.45;
     private bool _annotationHighlighter;
+    private InkStrokeStyle _annotationLineStyle = InkStrokeStyle.HandDrawn;
+    private int _draftSeed = 1;
     private bool _annotating;
     private List<Point> _draftPoints = new();
     private Point _draftPointer;
@@ -103,10 +105,25 @@ public partial class MainWindow : Window
     private Point _compassPointer;
     private int _compassActiveRing = -1;
     private int[] _compassSelection = { -1, -1, -1, -1 };
+    private enum CompassTrigger { None, Pointer, Line }
+    private CompassTrigger[] _compassTrigger = { CompassTrigger.None, CompassTrigger.None, CompassTrigger.None, CompassTrigger.None };
+    private int _compassPreviewRing = -1;
     private Line? _compassGuideHalo;
     private Line? _compassGuideFlow;
     private Border? _compassTooltip;
     private TextBlock? _compassTooltipText;
+
+    // Bottom filmstrip / playlist. A dropped batch takes precedence over the directory list.
+    private sealed class FilmItem
+    {
+        public string Path { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public BitmapSource? Thumbnail { get; set; }
+        public System.Windows.Media.Brush Brush { get; set; } = System.Windows.Media.Brushes.Transparent;
+    }
+    private readonly List<FilmItem> _playlist = new();
+    private bool _playlistFromDrop;
+    private bool _suppressFilmSelection;
 
     public MainWindow()
     {
@@ -125,6 +142,9 @@ public partial class MainWindow : Window
 
         IslandHitArea.MouseEnter += (_, _) => AnimateIsland(true);
         IslandHitArea.MouseLeave += (_, _) => AnimateIsland(false);
+        ToolBadge.MouseEnter += (_, _) => ToolBadge.BorderBrush = new SolidColorBrush(Color.FromArgb(170, 108, 182, 255));
+        ToolBadge.MouseLeave += (_, _) => ToolBadge.BorderBrush = new SolidColorBrush(Color.FromArgb(102, 255, 255, 255));
+        BuildToolBadgeMenu();
         CloseHost.MouseEnter += (_, _) => AnimateCloseButton(0);
         CloseHost.MouseLeave += (_, _) => AnimateCloseButton(-32);
         ImageViewport.SizeChanged += (_, _) => { if (!_fittingWindow) ApplyImagePosition(); };
@@ -237,6 +257,9 @@ public partial class MainWindow : Window
         _currentProjectName = title;
         ApplyImagePosition();
         if (IsLoaded) FitImageToWindow();
+        _playlist.Clear();
+        _playlistFromDrop = false;
+        RefreshFilmstrip();
     }
 
     public void LoadImage(string path)
@@ -278,6 +301,7 @@ public partial class MainWindow : Window
             ApplyImagePosition();
 
             if (IsLoaded) FitImageToWindow();
+            SyncPlaylistForCurrentImage();
         }
         catch (Exception ex)
         {
@@ -400,6 +424,20 @@ public partial class MainWindow : Window
         return false;
     }
 
+    private bool IsFromFilmstripOrNavZone(RoutedEventArgs e)
+    {
+        var element = e.OriginalSource as DependencyObject;
+        while (element != null)
+        {
+            if (ReferenceEquals(element, PrevZone) || ReferenceEquals(element, NextZone) ||
+                ReferenceEquals(element, FilmstripHost) || ReferenceEquals(element, FilmstripBar) ||
+                ReferenceEquals(element, ToolBadgeMenu) || ReferenceEquals(element, ToolBadge))
+                return true;
+            element = VisualTreeHelper.GetParent(element);
+        }
+        return false;
+    }
+
     /// <summary>
     /// Reveals the screenshot-style island by animating a rectangular clip from the
     /// collapsed hairline down to the full rounded shape. No layout properties animate,
@@ -487,6 +525,9 @@ public partial class MainWindow : Window
                 break;
             case HotkeyAction.FitImageToWindow:
                 FitImageToWindow();
+                break;
+            case HotkeyAction.ScreenshotRegion:
+                StartScreenshot(ScreenshotMode.Region);
                 break;
         }
     }
@@ -669,7 +710,7 @@ public partial class MainWindow : Window
     protected override void OnPreviewMouseDown(MouseButtonEventArgs e)
     {
         base.OnPreviewMouseDown(e);
-        if (IsFromButton(e)) return;
+        if (IsFromButton(e) || IsFromFilmstripOrNavZone(e)) return;
         if (HandleCompassDown(e)) return;
         if (HandleAnnotationDown(e)) return;
 

@@ -175,6 +175,7 @@ public partial class App : Application
             var existing = Current.Windows.OfType<MainWindow>().FirstOrDefault();
             if (existing != null)
             {
+                if (files.Count > 1) existing.SetPlaylist(files, true);
                 if (files.Count > 0) LoadInto(files[0], existing);
                 existing.Show();
                 existing.Activate();
@@ -183,6 +184,7 @@ public partial class App : Application
 
             var window = new MainWindow();
             Current.MainWindow = window;
+            if (files.Count > 1) window.SetPlaylist(files, true);
             if (files.Count > 0) LoadInto(files[0], window);
             window.Show();
             return;
@@ -274,6 +276,20 @@ public partial class App : Application
             return;
         }
         new SettingsWindow().Show();
+    }
+
+    /// <summary>Open the settings panel with the AI section highlighted.</summary>
+    public static void ShowAiSettings()
+    {
+        var existing = Current.Windows.OfType<SettingsWindow>().FirstOrDefault();
+        if (existing != null)
+        {
+            existing.FocusAiSection();
+            existing.Show();
+            existing.Activate();
+            return;
+        }
+        new SettingsWindow(aiFocus: true).Show();
     }
 
     public static void ShowAbout()

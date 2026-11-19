@@ -10,7 +10,8 @@ public enum HotkeyAction
 {
     ToggleTopMost,
     FitWindowToImage,
-    FitImageToWindow
+    FitImageToWindow,
+    ScreenshotRegion
 }
 
 /// <summary>
@@ -47,6 +48,7 @@ public sealed class HotkeyHost : IDisposable
         TryRegister(1, HotkeyAction.ToggleTopMost, settings.ToggleTopMostHotkey, failed);
         TryRegister(2, HotkeyAction.FitWindowToImage, settings.FitWindowToImageHotkey, failed);
         TryRegister(3, HotkeyAction.FitImageToWindow, settings.FitImageToWindowHotkey, failed);
+        TryRegister(4, HotkeyAction.ScreenshotRegion, settings.ScreenshotHotkey, failed);
         FailedRegistrations = failed;
     }
 

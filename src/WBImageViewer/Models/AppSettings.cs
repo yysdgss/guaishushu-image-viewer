@@ -25,6 +25,14 @@ public enum CompassButton
     Middle
 }
 
+public enum ScreenshotMode
+{
+    FullScreen,
+    Window,
+    Region,
+    Freeform
+}
+
 public sealed class AppSettings
 {
     public bool SingleWindow { get; set; } = true;
@@ -54,6 +62,7 @@ public sealed class AppSettings
     public string ToggleTopMostHotkey { get; set; } = "Shift+Ctrl+Alt+T";
     public string FitWindowToImageHotkey { get; set; } = "Shift+Ctrl+Alt+R";
     public string FitImageToWindowHotkey { get; set; } = "Shift+Ctrl+Alt+S";
+    public string ScreenshotHotkey { get; set; } = "Shift+Ctrl+Alt+X";
 
     /// <summary>Hold these modifiers while scrolling to zoom the window together with the image.</summary>
     public string WheelWindowModifiers { get; set; } = "Ctrl";

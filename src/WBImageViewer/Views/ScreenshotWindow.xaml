@@ -8,8 +8,8 @@
         <!-- dimming layer with a transparent cut-out -->
         <Path x:Name="Dimmer" Fill="#AA000000" IsHitTestVisible="False" />
         <Canvas x:Name="SelectionCanvas">
-            <Border x:Name="SelectionBox" BorderBrush="#FF4CA8FF" BorderThickness="1.5"
-                    Background="#143464FF" Visibility="Collapsed" IsHitTestVisible="False" />
+            <Path x:Name="SelectionBox" Stroke="#FF6CB6FF" StrokeThickness="1.5"
+                  Fill="#143464FF" Visibility="Collapsed" IsHitTestVisible="False" />
             <Border x:Name="SizeTip" Visibility="Collapsed" IsHitTestVisible="False"
                     Background="#E610141A" BorderBrush="#55FFFFFF" BorderThickness="1" CornerRadius="4" Padding="4,2">
                 <TextBlock x:Name="SizeText" Foreground="White" FontSize="11" FontFamily="Consolas" />

@@ -45,6 +45,7 @@ internal static class GjpgService
         public double Thickness { get; set; }
         public double Opacity { get; set; } = 1;
         public bool Highlighter { get; set; }
+        public string Style { get; set; } = "HandDrawn";
     }
 
     private sealed class FillDto
@@ -81,7 +82,8 @@ internal static class GjpgService
                 Color = ToArgb(s.Color),
                 Thickness = s.Thickness,
                 Opacity = s.Opacity,
-                Highlighter = s.Highlighter
+                Highlighter = s.Highlighter,
+                Style = s.Style.ToString()
             }).ToList(),
             Fills = fills.Select(f => new FillDto
             {
@@ -127,7 +129,8 @@ internal static class GjpgService
                 var pts = s.Points.Where(p => p.Length == 2)
                     .Select(p => new Point(p[0], p[1])).ToList();
                 if (pts.Count < 2) continue;
-                strokes.Add(new AnnotationStroke(tool, pts, FromArgb(s.Color), s.Thickness)
+                strokes.Add(new AnnotationStroke(tool, pts, FromArgb(s.Color), Math.Max(0.25, s.Thickness),
+                    Enum.TryParse<InkStrokeStyle>(s.Style, out var style) ? style : InkStrokeStyle.HandDrawn)
                 {
                     Opacity = s.Opacity == 0 ? 1 : s.Opacity,
                     Highlighter = s.Highlighter
