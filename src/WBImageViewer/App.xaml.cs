@@ -91,7 +91,10 @@ public partial class App : Application
 
         SetupTray();
         NotifyHotkeyFailures();
-        OpenFiles(files);
+        if (files.Length == 1 && string.Equals(System.IO.Path.GetExtension(files[0]), GjpgService.Extension, StringComparison.OrdinalIgnoreCase))
+            OpenDocument(files[0]);
+        else
+            OpenFiles(files);
 
         if (Current.Windows.Count == 0)
             OpenFiles(Array.Empty<string>());
@@ -136,6 +139,35 @@ public partial class App : Application
         target?.ExecuteHotkey(action);
     }
 
+    /// <summary>Open an image or a .gjpg editable project, choosing the right loader.</summary>
+    public static void OpenDocument(string path)
+    {
+        if (string.Equals(System.IO.Path.GetExtension(path), GjpgService.Extension, StringComparison.OrdinalIgnoreCase))
+        {
+            var project = Current.Windows.OfType<MainWindow>().FirstOrDefault(w => w.IsActive)
+                          ?? Current.MainWindow as MainWindow
+                          ?? Current.Windows.OfType<MainWindow>().FirstOrDefault();
+            if (project != null && project.LoadProject(path))
+            {
+                project.Show();
+                project.Activate();
+                return;
+            }
+        }
+        (Current as App)?.OpenFiles(new[] { path });
+    }
+
+    /// <summary>Show a captured bitmap in a new, topmost pinned viewer window.</summary>
+    public static void OpenBitmap(System.Windows.Media.Imaging.BitmapSource bitmap, string title)
+    {
+        var window = new MainWindow();
+        Current.MainWindow ??= window;
+        window.ShowCaptured(bitmap, title);
+        window.Show();
+        window.Topmost = true;
+        window.Activate();
+    }
+
     private void OpenFiles(IReadOnlyList<string> files)
     {
         if (Settings.SingleWindow)
@@ -143,7 +175,7 @@ public partial class App : Application
             var existing = Current.Windows.OfType<MainWindow>().FirstOrDefault();
             if (existing != null)
             {
-                if (files.Count > 0) existing.LoadImage(files[0]);
+                if (files.Count > 0) LoadInto(files[0], existing);
                 existing.Show();
                 existing.Activate();
                 return;
@@ -151,7 +183,7 @@ public partial class App : Application
 
             var window = new MainWindow();
             Current.MainWindow = window;
-            if (files.Count > 0) window.LoadImage(files[0]);
+            if (files.Count > 0) LoadInto(files[0], window);
             window.Show();
             return;
         }
@@ -167,10 +199,19 @@ public partial class App : Application
         foreach (var file in files)
         {
             var window = new MainWindow();
-            window.LoadImage(file);
+            LoadInto(file, window);
             window.Show();
             Current.MainWindow ??= window;
         }
+    }
+
+    private static void LoadInto(string path, MainWindow window)
+    {
+        if (string.Equals(System.IO.Path.GetExtension(path), GjpgService.Extension, StringComparison.OrdinalIgnoreCase))
+        {
+            if (window.LoadProject(path)) return;
+        }
+        window.LoadImage(path);
     }
 
     private void SetupTray()

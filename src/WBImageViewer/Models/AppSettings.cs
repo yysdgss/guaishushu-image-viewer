@@ -67,4 +67,19 @@ public sealed class AppSettings
 
     /// <summary>Original per-user default ProgIDs, kept so the association can be cleanly reverted.</summary>
     public Dictionary<string, string?> PreviousAssociations { get; set; } = new();
+
+    /// <summary>Natural writing pen width used as the default brush diameter (px).</summary>
+    public double DefaultPenWidth { get; set; } = 3;
+
+    /// <summary>Default stroke opacity. 0.45 mimics a PPT highlighter mark.</summary>
+    public double DefaultOpacity { get; set; } = 0.45;
+
+    /// <summary>Whether new strokes start in translucent highlighter mode.</summary>
+    public bool DefaultHighlighter { get; set; } = false;
+
+    // ---- Multimodal AI (OpenAI-compatible chat/completions) ----
+    public string AiEndpoint { get; set; } = "https://api.openai.com/v1";
+    public string AiKey { get; set; } = "";
+    public string AiModel { get; set; } = "gpt-4o-mini";
+    public string AiTargetLanguage { get; set; } = "简体中文";
 }

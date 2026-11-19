@@ -26,7 +26,10 @@ public static class SupportedFormats
         ".xmind", ".mm", ".drawio", ".vsdx", ".vsd", ".vdw", ".vst", ".graphml"
     };
 
-    public static string[] All => Raster.Concat(RichPreview).ToArray();
+    /// <summary>Guaishushu editable annotated-picture container.</summary>
+    public static readonly string[] ProjectFiles = { ".gjpg" };
+
+    public static string[] All => Raster.Concat(RichPreview).Concat(ProjectFiles).ToArray();
 
     /// <summary>Human-readable list used by the About window and README.</summary>
     public const string DisplayText =

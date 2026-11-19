@@ -108,9 +108,27 @@
 
         <Border x:Name="ToolBadge" HorizontalAlignment="Left" VerticalAlignment="Bottom"
                 Margin="10,0,0,10" Padding="8,4" CornerRadius="6"
-                Background="#CC101216" BorderBrush="#55FFFFFF" BorderThickness="1"
-                Visibility="Collapsed" IsHitTestVisible="False">
-            <TextBlock x:Name="ToolBadgeText" Text="标注：指针" FontSize="11" Foreground="#FFE8EAED" />
+                Background="#E6101216" BorderBrush="#66FFFFFF" BorderThickness="1"
+                Visibility="Collapsed" IsHitTestVisible="True" Cursor="Arrow">
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <Button x:Name="ToolBadgeName" Content="标注：指针" FontSize="11"
+                        Foreground="#FFE8EAED" Background="Transparent" BorderThickness="0"
+                        Padding="2,1" Cursor="Hand" ToolTip="单击切换线段形状"
+                        Click="ToolBadgeName_Click" />
+                <Rectangle Width="1" Height="14" Fill="#44FFFFFF" Margin="4,0" />
+                <Button x:Name="ToolBadgeSize" Content="直径 3" FontSize="11"
+                        Foreground="#FFC9D1DC" Background="Transparent" BorderThickness="0"
+                        Padding="2,1" Cursor="Hand" ToolTip="单击切换笔触直径"
+                        Click="ToolBadgeSize_Click" />
+                <Button x:Name="ToolBadgeOpacity" Content="100%" FontSize="11"
+                        Foreground="#FFC9D1DC" Background="Transparent" BorderThickness="0"
+                        Padding="4,1,2,1" Cursor="Hand" ToolTip="单击切换不透明度"
+                        Click="ToolBadgeOpacity_Click" />
+                <Ellipse x:Name="ToolBadgeColorDot" Width="12" Height="12" Margin="5,0,1,0"
+                         Fill="#FFFF5252" Stroke="#AAFFFFFF" StrokeThickness="1"
+                         Cursor="Hand" MouseLeftButtonUp="ToolBadgeColorDot_Click"
+                         ToolTip="单击打开调色板" />
+            </StackPanel>
         </Border>
 
         <!-- Dynamic island: grows directly out of the window's top edge. The top edge sits at

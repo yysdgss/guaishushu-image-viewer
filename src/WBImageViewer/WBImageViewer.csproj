@@ -12,7 +12,7 @@
     <ApplicationIcon>Assets\app.ico</ApplicationIcon>
     <!-- Single source of truth for the product version. AppInfo and both packaging
          scripts read this value; never duplicate it in code or batch files. -->
-    <Version>2.0.0</Version>
+    <Version>3.0.0</Version>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <Product>怪叔叔看图</Product>
     <Authors>怪叔叔</Authors>
@@ -22,6 +22,11 @@
     <Resource Include="Assets\app.ico" />
     <Resource Include="Assets\app.png" />
     <Resource Include="Assets\donate.png" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Resources\pen.cur" LogicalName="WBImageViewer.Resources.pen.cur" />
+    <EmbeddedResource Include="Resources\eraser.cur" LogicalName="WBImageViewer.Resources.eraser.cur" />
   </ItemGroup>
 
 </Project>

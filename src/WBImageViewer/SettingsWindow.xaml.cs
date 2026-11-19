@@ -34,6 +34,11 @@ public partial class SettingsWindow : Window
         OpacitySlider.Value = Math.Clamp(settings.PanelOpacity, 0.2, 1.0);
         AutoOptimizeBox.IsChecked = settings.AutoOptimize;
         AssociateBox.IsChecked = settings.AssociateAsDefaultViewer;
+        PenWidthBox.Text = settings.DefaultPenWidth.ToString(CultureInfo.InvariantCulture);
+        AiEndpointBox.Text = settings.AiEndpoint;
+        AiModelBox.Text = settings.AiModel;
+        AiKeyBox.Text = settings.AiKey;
+        AiLanguageBox.Text = settings.AiTargetLanguage;
 
         foreach (var box in new[] { TopMostBox, FitWindowBox, FitImageBox })
             box.PreviewKeyDown += HotkeyBox_PreviewKeyDown;
@@ -160,6 +165,38 @@ public partial class SettingsWindow : Window
         }
     }
 
+    private async void TestAi_Click(object sender, RoutedEventArgs e)
+    {
+        var endpoint = AiEndpointBox.Text.Trim();
+        var model = AiModelBox.Text.Trim();
+        var key = AiKeyBox.Text.Trim();
+        if (endpoint.Length == 0 || model.Length == 0)
+        {
+            MessageBox.Show("请先填写接口地址与模型名称。", "API 测试", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+        var saved = App.Settings;
+        var previous = (saved.AiEndpoint, saved.AiModel, saved.AiKey);
+        saved.AiEndpoint = endpoint;
+        saved.AiModel = model;
+        saved.AiKey = key;
+        try
+        {
+            var reply = await AiService.TranslateTextAsync("hello");
+            MessageBox.Show($"连接成功！模型返回：\n{reply}", "API 测试", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"连接失败：{ex.Message}", "API 测试", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        finally
+        {
+            saved.AiEndpoint = previous.AiEndpoint;
+            saved.AiModel = previous.AiModel;
+            saved.AiKey = previous.AiKey;
+        }
+    }
+
     private void Save_Click(object sender, RoutedEventArgs e)
     {
         var topMost = TopMostBox.Text.Trim();
@@ -248,6 +285,12 @@ public partial class SettingsWindow : Window
             PanelOpacity = opacity,
             AutoOptimize = AutoOptimizeBox.IsChecked == true,
             AssociateAsDefaultViewer = AssociateBox.IsChecked == true,
+            DefaultPenWidth = double.TryParse(PenWidthBox.Text, NumberStyles.Float, CultureInfo.InvariantCulture, out var pw)
+                ? Math.Clamp(pw, 1, 24) : 3,
+            AiEndpoint = AiEndpointBox.Text.Trim(),
+            AiModel = AiModelBox.Text.Trim(),
+            AiKey = AiKeyBox.Text.Trim(),
+            AiTargetLanguage = string.IsNullOrWhiteSpace(AiLanguageBox.Text) ? "简体中文" : AiLanguageBox.Text.Trim(),
             Adjustments = App.Settings.Adjustments?.Clone() ?? new ImageAdjustments(),
             PreviousAssociations = new Dictionary<string, string?>(App.Settings.PreviousAssociations)
         };

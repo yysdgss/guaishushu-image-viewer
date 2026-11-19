@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
 using Color = System.Windows.Media.Color;
 using Point = System.Windows.Point;
@@ -15,6 +16,7 @@ internal enum AnnotationTool
     DoubleLine,
     Freehand,
     Circle,
+    Fill,
     Move,
     EraserFree,
     EraserClick
@@ -25,16 +27,24 @@ internal enum AnnotationTool
 /// ink follows the picture when the viewport is zoomed, panned or resized.
 /// Geometry is rendered as a variable-width filled ribbon with deterministic,
 /// t-parameterised wobble, producing a genuine hand-drawn marker look that stays
-/// stable across redraws.
+/// stable across redraws. Each stroke now carries an id, opacity / highlighter mode
+/// and mutable style so it can be edited after it is drawn.
 /// </summary>
 internal sealed class AnnotationStroke
 {
-    private readonly int _seed;
+    private int _seed;
 
-    public AnnotationTool Tool { get; }
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public AnnotationTool Tool { get; set; }
     public List<Point> Points { get; }
-    public Color Color { get; }
-    public double Thickness { get; }
+    public Color Color { get; set; }
+    public double Thickness { get; set; }
+
+    /// <summary>Alpha multiplier applied at render time (0.15..1).</summary>
+    public double Opacity { get; set; } = 1.0;
+
+    /// <summary>PPT-style highlighter: translucent, wider, additive-looking ink.</summary>
+    public bool Highlighter { get; set; }
 
     public AnnotationStroke(AnnotationTool tool, IEnumerable<Point> points, Color color, double thickness)
     {
@@ -45,29 +55,121 @@ internal sealed class AnnotationStroke
         _seed = ComputeSeed(Points);
     }
 
-    public UIElement CreateVisual(Func<Point, Point> toViewport)
+    /// <summary>Re-derive the deterministic wobble seed after geometry edits.</summary>
+    public void Reseed() => _seed = ComputeSeed(Points);
+
+    public UIElement CreateVisual(Func<Point, Point> toViewport, bool selected = false)
     {
         var host = new Canvas { IsHitTestVisible = false };
-        foreach (var line in BuildPolylines(toViewport))
-            host.Children.Add(CreateSketchStroke(line));
+        var alpha = (byte)Math.Clamp((int)Math.Round(255 * Math.Clamp(Opacity, 0.05, 1)), 12, (byte)255);
+        var ink = Color.FromArgb(alpha, Color.R, Color.G, Color.B);
+        var width = Highlighter ? Thickness * 2.6 : Thickness;
+        foreach (var line in BuildPolylines(toViewport, width))
+        {
+            var path = CreateSketchStroke(line, ink, width);
+            host.Children.Add(path);
+        }
+        if (selected)
+        {
+            foreach (var handle in GetHandlePoints(toViewport))
+            {
+                var dot = new Ellipse
+                {
+                    Width = 9, Height = 9,
+                    Fill = System.Windows.Media.Brushes.White,
+                    Stroke = new SolidColorBrush(Color.FromRgb(30, 120, 220)),
+                    StrokeThickness = 1.5,
+                    IsHitTestVisible = false
+                };
+                Canvas.SetLeft(dot, handle.X - 4.5);
+                Canvas.SetTop(dot, handle.Y - 4.5);
+                host.Children.Add(dot);
+            }
+        }
         return host;
     }
 
     public bool HitTest(Point viewportPoint, Func<Point, Point> toViewport, double radius)
     {
-        foreach (var line in BuildPolylines(toViewport))
+        var width = Highlighter ? Thickness * 2.6 : Thickness;
+        foreach (var line in BuildPolylines(toViewport, width))
         {
             for (var i = 0; i < line.Count - 1; i++)
             {
-                if (DistanceToSegment(viewportPoint, line[i], line[i + 1]) <= radius + Thickness / 2)
+                if (DistanceToSegment(viewportPoint, line[i], line[i + 1]) <= radius + width / 2)
                     return true;
             }
         }
         return false;
     }
 
-    /// <summary>Render a centreline as a filled ribbon whose width breathes like a pen stroke.</summary>
-    private Path CreateSketchStroke(IReadOnlyList<Point> points)
+    /// <summary>Control points exposed for editing, in normalized image space.</summary>
+    public List<(int Index, Point Value)> GetHandles()
+    {
+        if (Tool is AnnotationTool.Line or AnnotationTool.Wave or AnnotationTool.DoubleLine)
+            return new List<(int, Point)> { (0, Points[0]), (Points.Count - 1, Points[^1]) };
+        if (Tool == AnnotationTool.Circle)
+        {
+            var l = Points.Min(p => p.X);
+            var r = Points.Max(p => p.X);
+            var t = Points.Min(p => p.Y);
+            var b = Points.Max(p => p.Y);
+            return new List<(int, Point)> { (0, new Point(l, t)), (1, new Point(r, b)) };
+        }
+        // Freehand / fill: no geometry handles; move-only.
+        return new List<(int, Point)>();
+    }
+
+    private List<Point> GetHandlePoints(Func<Point, Point> toViewport) =>
+        GetHandles().Select(h => toViewport(h.Value)).ToList();
+
+    /// <summary>
+    /// Apply an edit drag on one handle (normalized coords). Returns true if the tool
+    /// supports handle editing. Line-family tools move an endpoint; circle resizes its
+    /// bounding box; freehand/fill deliberately keep their natural shape.
+    /// </summary>
+    public bool ApplyHandle(int handleIndex, Point target, Point originalBoundsTopLeft, Point originalBoundsBottomRight)
+    {
+        if (Tool is AnnotationTool.Line or AnnotationTool.Wave or AnnotationTool.DoubleLine)
+        {
+            var idx = handleIndex == 0 ? 0 : Points.Count - 1;
+            Points[idx] = new Point(Math.Clamp(target.X, -0.5, 1.5), Math.Clamp(target.Y, -0.5, 1.5));
+            Reseed();
+            return true;
+        }
+        if (Tool == AnnotationTool.Circle)
+        {
+            var l = originalBoundsTopLeft.X;
+            var t = originalBoundsTopLeft.Y;
+            var r = originalBoundsBottomRight.X;
+            var b = originalBoundsBottomRight.Y;
+            var w = Math.Max(0.01, r - l);
+            var h = Math.Max(0.01, b - t);
+            for (var i = 0; i < Points.Count; i++)
+            {
+                var nx = (Points[i].X - l) / w;
+                var ny = (Points[i].Y - t) / h;
+                var tl = handleIndex == 0 ? target : new Point(l, t);
+                var br = handleIndex == 0 ? new Point(r, b) : target;
+                var nw = Math.Max(0.01, br.X - tl.X);
+                var nh = Math.Max(0.01, br.Y - tl.Y);
+                Points[i] = new Point(tl.X + nx * nw, tl.Y + ny * nh);
+            }
+            Reseed();
+            return true;
+        }
+        return false;
+    }
+
+    /// <summary>Line-family tools can interchange; circle and freehand cannot (they have no start/end).</summary>
+    public static bool CanChangeTo(AnnotationTool from, AnnotationTool to)
+    {
+        if (to is AnnotationTool.Line or AnnotationTool.Wave or AnnotationTool.DoubleLine)
+            return from is AnnotationTool.Line or AnnotationTool.Wave or AnnotationTool.DoubleLine;
+        return false;
+    }
+
+    private Path CreateSketchStroke(IReadOnlyList<Point> points, Color ink, double width)
     {
         var left = new List<Point>(points.Count);
         var right = new List<Point>(points.Count);
@@ -84,9 +186,9 @@ internal sealed class AnnotationStroke
             var ny = len > 0.0001 ? dx / len : 0;
 
             var t = points.Count > 1 ? i / (double)(points.Count - 1) : 0;
-            var taper = 0.42 + 0.58 * Math.Pow(Math.Sin(Math.PI * t), 0.38);
+            var taper = Highlighter ? 1 : 0.42 + 0.58 * Math.Pow(Math.Sin(Math.PI * t), 0.38);
             var pressure = 0.84 + 0.32 * Noise(i * 3 + 7);
-            var half = Math.Max(0.35, Thickness * 0.5 * taper * pressure);
+            var half = Math.Max(0.35, width * 0.5 * taper * pressure);
 
             left.Add(new Point(p.X + nx * half, p.Y + ny * half));
             right.Add(new Point(p.X - nx * half, p.Y - ny * half));
@@ -103,13 +205,14 @@ internal sealed class AnnotationStroke
         return new Path
         {
             Data = geometry,
-            Fill = new SolidColorBrush(Color),
+            Fill = new SolidColorBrush(ink),
+            Opacity = Highlighter ? 0.92 : 1,
             IsHitTestVisible = false,
             SnapsToDevicePixels = false
         };
     }
 
-    private List<List<Point>> BuildPolylines(Func<Point, Point> toViewport)
+    private List<List<Point>> BuildPolylines(Func<Point, Point> toViewport, double width)
     {
         var raw = Points.Select(toViewport).ToList();
         if (raw.Count < 2) return new List<List<Point>> { raw };
@@ -117,14 +220,13 @@ internal sealed class AnnotationStroke
         return Tool switch
         {
             AnnotationTool.Line => new List<List<Point>> { SketchLine(raw) },
-            AnnotationTool.Wave => SketchWave(raw),
-            AnnotationTool.DoubleLine => SketchDouble(raw),
+            AnnotationTool.Wave => SketchWave(raw, width),
+            AnnotationTool.DoubleLine => SketchDouble(raw, width),
             AnnotationTool.Circle => SketchCircle(raw),
             _ => new List<List<Point>> { raw }
         };
     }
 
-    /// <summary>A straight line with a faint bow, micro jitter and slightly overshot ends.</summary>
     private List<Point> SketchLine(IReadOnlyList<Point> raw)
     {
         var a = raw[0];
@@ -152,8 +254,7 @@ internal sealed class AnnotationStroke
         return result;
     }
 
-    /// <summary>Two overlapping wavy traces, each with drifting amplitude and jitter.</summary>
-    private List<List<Point>> SketchWave(IReadOnlyList<Point> raw)
+    private List<List<Point>> SketchWave(IReadOnlyList<Point> raw, double width)
     {
         var a = raw[0];
         var b = raw[^1];
@@ -163,9 +264,9 @@ internal sealed class AnnotationStroke
         var nx = -dy / length;
         var ny = dx / length;
         var waves = Math.Max(2, Math.Min(10, length / 55));
-        var amplitude = Math.Max(3, Thickness * 1.6);
+        var amplitude = Math.Max(3, width * 1.6);
         var phase = Noise(3) * Math.PI * 2;
-        var gap = Math.Max(4, Thickness * 2.6);
+        var gap = Math.Max(4, width * 2.6);
 
         var passes = new List<List<Point>>();
         for (var p = 0; p < 2; p++)
@@ -187,8 +288,7 @@ internal sealed class AnnotationStroke
         return passes;
     }
 
-    /// <summary>Two imperfect parallel strokes instead of geometric ruler lines.</summary>
-    private List<List<Point>> SketchDouble(IReadOnlyList<Point> raw)
+    private List<List<Point>> SketchDouble(IReadOnlyList<Point> raw, double width)
     {
         var a = raw[0];
         var b = raw[^1];
@@ -197,7 +297,7 @@ internal sealed class AnnotationStroke
         var length = Math.Max(1, Hypot(dx, dy));
         var nx = -dy / length;
         var ny = dx / length;
-        var gap = Math.Max(4, Thickness * 2.4);
+        var gap = Math.Max(4, width * 2.4);
         var phase = Noise(12) * Math.PI * 2;
 
         var passes = new List<List<Point>>();
@@ -211,7 +311,7 @@ internal sealed class AnnotationStroke
                 var wobble = sign * gap / 2
                            + Math.Sin(t * Math.PI) * sign * length * 0.008
                            + Math.Sin(t * Math.PI * 4 + phase + p) * gap * 0.12
-                           + (Noise(i + 20 + p * 80) - 0.5) * Math.Max(1, Thickness * 0.7);
+                           + (Noise(i + 20 + p * 80) - 0.5) * Math.Max(1, width * 0.7);
                 result.Add(new Point(a.X + dx * t + nx * wobble, a.Y + dy * t + ny * wobble));
             }
             passes.Add(result);
@@ -219,7 +319,6 @@ internal sealed class AnnotationStroke
         return passes;
     }
 
-    /// <summary>Two rough overlapping loops with drifting centre, radius wobble and overshoot.</summary>
     private List<List<Point>> SketchCircle(IReadOnlyList<Point> raw)
     {
         var left = raw.Min(p => p.X);
@@ -271,7 +370,6 @@ internal sealed class AnnotationStroke
         }
     }
 
-    /// <summary>Deterministic pseudo-random value in [0,1); based on index only, never coordinates.</summary>
     private double Noise(int i)
     {
         unchecked

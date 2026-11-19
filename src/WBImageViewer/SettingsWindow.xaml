@@ -121,6 +121,51 @@
         <TextBlock Text="使用系统 UserChoice 哈希静默设为默认；若 Windows 未来更新改变算法，错误会即时提示。" Foreground="#FF6B7280" FontSize="11" Margin="21,0,0,8" />
         <Button Content="立即应用默认关联" HorizontalAlignment="Left" Padding="12,6" Margin="21,0,0,14" Click="ApplyDefaults_Click" />
 
+        <TextBlock Text="涂鸦默认设置" FontWeight="SemiBold" Margin="0,6,0,6" />
+        <Grid Margin="0,0,0,14">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="190" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Text="自然书写笔触直径 (px)" VerticalAlignment="Center" />
+            <TextBox x:Name="PenWidthBox" Grid.Column="1" />
+        </Grid>
+
+        <TextBlock Text="大模型 API（截图 / 框选翻译、文字识别，兼容 OpenAI 格式）" FontWeight="SemiBold" Margin="0,4,0,6" />
+        <Grid Margin="0,0,0,6">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="190" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Text="接口地址" VerticalAlignment="Center" />
+            <TextBox x:Name="AiEndpointBox" Grid.Column="1" />
+        </Grid>
+        <Grid Margin="0,0,0,6">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="190" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Text="模型名称" VerticalAlignment="Center" />
+            <TextBox x:Name="AiModelBox" Grid.Column="1" />
+        </Grid>
+        <Grid Margin="0,0,0,6">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="190" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Text="API 密钥" VerticalAlignment="Center" />
+            <TextBox x:Name="AiKeyBox" Grid.Column="1" />
+        </Grid>
+        <Grid Margin="0,0,0,14">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="190" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Text="翻译目标语言" VerticalAlignment="Center" />
+            <TextBox x:Name="AiLanguageBox" Grid.Column="1" />
+        </Grid>
+        <Button Content="测试 API 连接" HorizontalAlignment="Left" Padding="12,6" Margin="0,0,0,14" Click="TestAi_Click" />
+
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
             <Button Content="保存" Width="88" Padding="10,6" IsDefault="True" Click="Save_Click" />
             <Button Content="取消" Width="88" Padding="10,6" Margin="10,0,0,0" IsCancel="True" />

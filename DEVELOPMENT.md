@@ -3387,9 +3387,74 @@ RedrawAnnotations();
 - **资源**：覆盖 `src/WBImageViewer/Assets/app.png`（256×256 RGBA 透明 PNG）与 `Assets/app.ico`（16/24/32/48/64/128/256 七尺寸）。由于主窗口、设置/关于窗口、托盘、任务栏、资源管理器关联、快捷方式与安装程序统一引用这两个资源，替换后全场景同步生效（R79）。
 - **配套**：`AboutWindow.xaml` 中承载 Logo 的底板由深色 `#101216` 改为浅灰 `#F1F3F5`，避免墨绿龙身在深色底上对比不足；README「Logo 与品牌」章节同步新描述。
 
+### R80 罗盘连线精修与纯视觉化
+
+- **需求**：连接鼠标的线更细、更精致；线只作视觉效果不产生触发，触发以鼠标落点为准。
+- **实现**：`OpenCompass()` 中 `_compassGuideHalo` 描边由 7 降到 2.2、`_compassGuideFlow` 由 2.6 降到 1.2，虚线由 `9,7` 改为 `4,5`，流光阴影半径 6；`UpdateCompass()` 的扇区命中只由 `_compassPointer` 的角度与距离计算，连线 `Line` 设置 `IsHitTestVisible=false`，不参与任何命中。`HandleCompassUp()` 仅以 `_compassActiveRing`/`_compassSelection` 触发（R80）。
+
+### R81 罗盘三态高亮与外层粘滞
+
+- **需求**：常态统一风格；悬停项高亮、其余降对比；子层沿用同样逻辑；最外层菜单在鼠标漂出范围时保持显示，只有回到里层才收起。
+- **实现**：`RebuildCompass()` 计算 `anyActive`，对每个扇区区分 `active`（当前环选中，255 alpha +40 提亮 + 白色 2px 描边）、`breadcrumb`（祖先路径，205 alpha）、`dim`（其余，92 alpha ×0.55 变暗）；`UpdateCompass()` 中指针漂出所有环时仅移动连线不清空 `_compassSelection`（粘滞），指针回到更内环时才截断更深选择（R81）。
+
+### R82 罗盘三套上下文菜单
+
+- **需求**：画布（含无图空白）显示软件常规功能；图片上激活图片管理/涂鸦菜单；涂鸦元素上激活元素编辑菜单。
+- **实现**：新增 `CompassContext{Canvas,Image,Element}` 与 `CanvasCompassTree`/`ElementCompassTree`，`ResolveCompassContext()` 先 `HitTestAnyElement()` 命中元素即选为 Element 并 `SelectElement`，否则按 `IsInsideImage` 判 Image，其余 Canvas。`OpenCompass()` 按上下文构建对应树，Hub 文字随上下文显示画布/标注/元素（R82）。
+
+### R83 元素编辑（端点/边界/移动/删除）
+
+- **需求**：线段拖两端顶点改长度、拖本体移动、Delete 删除；圆圈可调长宽；自由画只移动；线型不能改为圆圈/自由画产物。
+- **实现**：`AnnotationStroke` 加 `Id/Opacity/Highlighter` 与可写 `Color/Thickness/Tool`，`GetHandles()` 为线段返回起止点、圆圈返回包围盒两角、自由画/填充返回空；`ApplyHandle()` 按索引改写端点或缩放包围盒并 `Reseed()`；`CanChangeTo()` 限制只有线族之间可互转。`MainWindow.Edit.cs` 的 `TryBeginElementEdit()` 命中手柄进入 `_editingElement`，命中本体进入移动；`ApplyElementEdit()` 分发到 stroke/fill/text；`DeleteSelectedElement`/`DuplicateSelectedElement`/`ChangeSelectedLineType` 完成编辑；`OnPreviewKeyDown` 处理 Delete 与 Esc 退出工具（R83）。
+
+### R84 油漆桶填充
+
+- **需求**：罗盘加入油漆桶，给封闭区域填充指定颜色。
+- **实现**：新增 `AnnotationFill`：以归一化种子点 + 颜色 + 容差存储，`Build()` 用栈式洪泛在 `_sourcePixels` 上求连通区并生成透明 `WriteableBitmap` 缓存；`AnnotationTool.Fill` + `CompassAction.Fill`，落笔处 `ToImageSpace` 求种子、`Build` 后加入 `_fills` 并由 `RedrawAnnotations()` 铺到图片层（R84）。
+
+### R85 透明度与荧光笔高亮
+
+- **需求**：渐变透明度类 PPT 黄光高亮，既不遮挡背景又凸显笔迹；罗盘面板与选中元素左下角均可设置。
+- **实现**：`AnnotationStroke`/`AnnotationFill`/`AnnotationText` 加 `Opacity`，笔迹加 `Highlighter`（宽度 ×2.6、收细关闭）；罗盘「透明」分类提供高亮 0.35 / 半透明 0.55 / 实心 1.0 / 荧光笔切换，`SetOpacity()` 同时写入当前笔与选中元素；左下角徽标 `ToolBadgeOpacity` 单击循环切换。默认 `AppSettings.DefaultOpacity=0.45`、`DefaultPenWidth=3` 由 `ApplyVisualSettings()` 应用（R85）。
+
+### R86 截图钉桌面（仿微信）
+
+- **需求**：仿微信截图，确认后新窗口置顶显示截图，截图即钉在桌面。
+- **实现**：新增 `Views.ScreenshotWindow`：全屏透明置顶遮罩，`StreamGeometry` 双子路径实现暗化挖空，左键拖拽框选、尺寸提示、确认/取消工具条；`Confirm_Click` 用 `Graphics.CopyFromScreen` 按虚拟屏 DPI 比例抓取区域为 `BitmapSource`；`App.OpenBitmap()` 以 `MainWindow.ShowCaptured()` 载入并以 `Topmost=true` 新窗口展示（R86）。
+
+### R87 大模型 API：翻译与文字识别
+
+- **需求**：提供大模型 API 接口，截图可直接翻译、手写文字识别；图片上框选区域进行翻译/识别。
+- **实现**：新增 `AiService`（OpenAI 兼容 `chat/completions`，支持文本与 `image_url` base64 多模态），`OcrAsync`/`TranslateImageAsync`/`TranslateTextAsync`；`AppSettings` 增 `AiEndpoint/AiKey/AiModel/AiTargetLanguage`，设置页可填并「测试 API 连接」；`RegionAction{Translate,Ocr}` + 罗盘「AI」分类，框选后 `RunRegionActionAsync()` 裁剪区域、调用 API、把结果存为 `AnnotationText` 卡片（可再移动/删除）（R87）。
+
+### R88 .gjpg 可编辑工程格式
+
+- **需求**：保存/另存为能把图片与标注、翻译、识别痕迹一起保存，下次打开自动加载并可继续编辑；市面无现成格式则自定义 .gjpg。
+- **实现**：新增 `GjpgService`：UTF-8 JSON 容器，内嵌原图 base64 PNG + `Annotations`/`Fills`/`Texts`/`Adjustments`；`Save()` 序列化，`TryLoad()` 反序列化并重建笔迹/填充（重新洪泛）/文本卡片；`SupportedFormats.ProjectFiles={".gjpg"}` 并入 `All`；`MainWindow.LoadProject()` 恢复全部编辑对象，`App.OpenDocument()`/`LoadInto()` 按扩展名分流，拖拽与 IPC 打开均走正确加载器（R88）。
+
+### R89 工具徽标交互与快捷设置
+
+- **需求**：左下角提示显示线名与直径；单击线名切换线段形状，点击直径/颜色快速设置。
+- **实现**：`ToolBadge` 由静态文本改为可交互条：线名按钮循环直线/波浪/双线/自由画/圈注，直径按钮循环预设笔宽，透明度按钮循环 0.35/0.55/0.8/1.0，颜色圆点单击打开 `ColorPaletteWindow`；`ShowToolBadge()` 同步名称、直径、透明度与颜色点（R89）。
+
+### R90 画线/橡皮光标形态
+
+- **需求**：画线工具钢笔光标，橡皮擦工具橡皮擦光标。
+- **实现**：生成 `Resources/pen.cur`（斜置钢笔 + 银色笔尖）与 `eraser.cur`（粉色橡皮块 + 白色擦头），以 `EmbeddedResource` + `LogicalName` 嵌入；`CursorFactory` 从程序集流加载，失败回退 `Cursors.Pen`/`Cursors.Cross`；`SetToolCursor()` 按工具设置光标（画线族用钢笔、擦除族用橡皮、移动用 SizeAll）（R90）。
+
 ---
 
 ## 11. 版本变更记录
+
+### 3.0.0（2026-11-19）
+
+- 罗盘重构：连线精修且纯视觉化（R80）、三态高亮与外层粘滞（R81）、画布/图片/元素三套上下文菜单（R82）。
+- 元素编辑：端点拖拽、圆圈调长宽、移动、Delete 删除、线型受限转换（R83）；油漆桶填充（R84）。
+- 透明度与荧光笔高亮，罗盘面板与左下角快捷设置（R85）。
+- 仿微信截图钉桌面新窗口置顶（R86）；大模型 API 翻译/手写识别与框选处理（R87）。
+- .gjpg 可编辑工程格式，保存/另存为与打开自动还原全部痕迹（R88）。
+- 左下角工具徽标可点击快设（R89）；钢笔与橡皮擦自定义光标（R90）。
+- 编译 0 警告 0 错误，单文件与安装程序封装产物版本均为 3.0.0。
 
 ### 2.0.0（2026-11-18）
 
