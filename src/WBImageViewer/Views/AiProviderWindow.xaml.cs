@@ -58,6 +58,10 @@ public partial class AiProviderWindow : Window
         InitializeComponent();
         TopmostCoordinator.Register(this);
         _config = App.Settings.AiConfig.Clone();
+        // Persisted models are already the checked subset; Selected is UI-only and
+        // deliberately not serialised, so restore it on load.
+        foreach (var provider in _config.Providers)
+            foreach (var model in provider.Models) model.Selected = true;
 
         ProviderList.ItemsSource = _suppliers;
         foreach (var provider in _config.Providers) _suppliers.Add(new SupplierVm(provider));

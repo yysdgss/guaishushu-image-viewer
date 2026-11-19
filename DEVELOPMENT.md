@@ -19,9 +19,9 @@
 | 软件名称 | 怪叔叔看图 |
 | 产品常量 | `AppInfo.Name = "怪叔叔看图"` |
 | 程序集名 | `怪叔叔看图`（安装器：`怪叔叔看图安装程序`）|
-| 当前版本 | `4.2.0` |
+| 当前版本 | `4.2.1` |
 | 仓库 | `https://github.com/yysdgss/guaishushu-image-viewer` |
-| Release | `https://github.com/yysdgss/guaishushu-image-viewer/releases/tag/v4.2.0` |
+| Release | `https://github.com/yysdgss/guaishushu-image-viewer/releases/tag/v4.2.1` |
 | 许可 | MIT |
 | 目标框架 | `net10.0-windows` |
 | UI 框架 | WPF |
@@ -3551,7 +3551,7 @@ RedrawAnnotations();
 
 ## 11. 版本变更记录
 
-### 4.2.0（2026-11-19）
+### 4.2.1（2026-11-19）
 
 - 后台设置重构为六类导航 + 独立滚动区 + 可缩放窗口（R109）。
 - 新增大模型配置中心：多供应商分组、上游模型库批量勾选、Chat Completions/Responses、翻译与识别独立默认模型、连接测速、Codex++ 本地路由一键对接（R110）。
