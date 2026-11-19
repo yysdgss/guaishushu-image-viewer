@@ -93,8 +93,13 @@ public sealed class AppSettings
     public bool DefaultHighlighter { get; set; } = false;
 
     // ---- Multimodal AI (OpenAI-compatible chat/completions) ----
+    // Legacy single-provider fields are retained for settings.json compatibility.
+    // AiConfig is the authoritative store; SettingsService migrates old files on load.
     public string AiEndpoint { get; set; } = "https://api.openai.com/v1";
     public string AiKey { get; set; } = "";
     public string AiModel { get; set; } = "gpt-4o-mini";
     public string AiTargetLanguage { get; set; } = "简体中文";
+
+    /// <summary>Multi-provider model catalogue with separate translation / OCR defaults.</summary>
+    public AiProviderConfig AiConfig { get; set; } = new();
 }

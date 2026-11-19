@@ -26,6 +26,8 @@ public partial class App : Application
             try
             {
                 var dest = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "怪叔叔看图");
+                var legacyDest = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                     "GuaishushuViewer");
                 foreach (var folder in new[]
                          {
@@ -37,9 +39,14 @@ public partial class App : Application
                     if (File.Exists(shortcut)) File.Delete(shortcut);
                 }
                 Microsoft.Win32.Registry.CurrentUser.DeleteSubKeyTree(
+                    @"Software\Microsoft\Windows\CurrentVersion\Uninstall\怪叔叔看图", false);
+                Microsoft.Win32.Registry.CurrentUser.DeleteSubKeyTree(@"Software\Classes\怪叔叔看图.Image", false);
+                Microsoft.Win32.Registry.CurrentUser.DeleteSubKeyTree(
                     @"Software\Microsoft\Windows\CurrentVersion\Uninstall\GuaishushuViewer", false);
-                Microsoft.Win32.Registry.CurrentUser.DeleteSubKeyTree(@"Software\Classes\GuaishushuViewer.Image", false);
+                Microsoft.Win32.Registry.CurrentUser.DeleteSubKeyTree(
+                    @"Software\Classes\GuaishushuViewer.Image", false);
                 if (Directory.Exists(dest)) Directory.Delete(dest, true);
+                if (Directory.Exists(legacyDest)) Directory.Delete(legacyDest, true);
             }
             catch { /* best effort */ }
             Shutdown();
@@ -50,7 +57,7 @@ public partial class App : Application
         {
             try
             {
-                var exe = Environment.ProcessPath ?? Path.Combine(AppContext.BaseDirectory, "GuaishushuViewer.exe");
+                var exe = Environment.ProcessPath ?? Path.Combine(AppContext.BaseDirectory, AppInfo.Name + ".exe");
                 var errors = DefaultAssociationService.ApplyAll(exe, SupportedFormats.All);
                 if (errors.Count > 0)
                     MessageBox.Show("部分格式未能设为默认：\n" + string.Join("\n", errors),
@@ -302,6 +309,15 @@ public partial class App : Application
             return;
         }
         new AboutWindow().Show();
+    }
+
+    public static void ApplyAiConfig(AiProviderConfig config)
+    {
+        Settings.AiConfig = config;
+        Settings.AiTargetLanguage = config.TargetLanguage;
+        SettingsService.Save(Settings);
+        foreach (var window in Current.Windows.OfType<MainWindow>())
+            window.ApplyVisualSettings(Settings);
     }
 
     public static void ApplySettings(AppSettings settings)

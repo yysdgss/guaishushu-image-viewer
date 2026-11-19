@@ -4,6 +4,8 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using WBImageViewer.Models;
 using WBImageViewer.Services;
+using WBImageViewer.Views;
+using Button = System.Windows.Controls.Button;
 using ComboBox = System.Windows.Controls.ComboBox;
 using ColorDialog = System.Windows.Forms.ColorDialog;
 using KeyEventArgs = System.Windows.Input.KeyEventArgs;
@@ -40,22 +42,84 @@ public partial class SettingsWindow : Window
         AutoOptimizeBox.IsChecked = settings.AutoOptimize;
         AssociateBox.IsChecked = settings.AssociateAsDefaultViewer;
         PenWidthBox.Text = settings.DefaultPenWidth.ToString(CultureInfo.InvariantCulture);
-        AiEndpointBox.Text = settings.AiEndpoint;
-        AiModelBox.Text = settings.AiModel;
-        AiKeyBox.Text = settings.AiKey;
-        AiLanguageBox.Text = settings.AiTargetLanguage;
+        AboutVersion.Text = $"{AppInfo.Name}  v{AppInfo.Version}";
 
         foreach (var box in new[] { TopMostBox, FitWindowBox, FitImageBox, ScreenshotBox })
             box.PreviewKeyDown += HotkeyBox_PreviewKeyDown;
 
         CheckAllConflicts();
+        RefreshAiSummary();
         Loaded += (_, _) => { if (_aiFocus) FocusAiSection(); };
     }
 
+    /// <summary>Switch to the model category and open the dedicated supplier centre.</summary>
     public void FocusAiSection()
     {
-        AiSection.BorderBrush = System.Windows.Media.Brushes.DeepSkyBlue;
-        AiKeyBox.Focus();
+        CategoryList.SelectedIndex = 4;
+        OpenAiConfig();
+    }
+
+    private void CategoryList_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        var tag = (CategoryList.SelectedItem as ComboBoxItem)?.Tag as string
+                  ?? (CategoryList.SelectedItem as System.Windows.Controls.ListBoxItem)?.Tag as string
+                  ?? "General";
+        PageGeneral.Visibility = tag == "General" ? Visibility.Visible : Visibility.Collapsed;
+        PageAppearance.Visibility = tag == "Appearance" ? Visibility.Visible : Visibility.Collapsed;
+        PageInteraction.Visibility = tag == "Interaction" ? Visibility.Visible : Visibility.Collapsed;
+        PageHotkeys.Visibility = tag == "Hotkeys" ? Visibility.Visible : Visibility.Collapsed;
+        PageModels.Visibility = tag == "Models" ? Visibility.Visible : Visibility.Collapsed;
+        PageAbout.Visibility = tag == "About" ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void RefreshAiSummary()
+    {
+        var config = App.Settings.AiConfig;
+        var translate = config.Resolve(true);
+        var ocr = config.Resolve(false);
+        var lines = new List<string>
+        {
+            $"供应商：{config.Providers.Count} 个",
+            translate == null
+                ? "翻译默认模型：未配置"
+                : $"翻译默认模型：{translate.Value.Provider.Name} / {translate.Value.Model}",
+            ocr == null
+                ? "识别默认模型：未配置"
+                : $"识别默认模型：{ocr.Value.Provider.Name} / {ocr.Value.Model}",
+            $"目标语言：{config.TargetLanguage}"
+        };
+        AiSummary.Text = string.Join(Environment.NewLine, lines);
+        TestDefaultAiButton.IsEnabled = translate != null;
+    }
+
+    private void OpenAiConfig()
+    {
+        var dialog = new AiProviderWindow { Owner = this };
+        if (dialog.ShowDialog() == true) RefreshAiSummary();
+    }
+
+    private void OpenAiConfig_Click(object sender, RoutedEventArgs e) => OpenAiConfig();
+
+    private async void TestDefaultAi_Click(object sender, RoutedEventArgs e)
+    {
+        var target = App.Settings.AiConfig.Resolve(true);
+        if (target == null)
+        {
+            MessageBox.Show("请先配置翻译默认模型。", "连接检查", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+        var button = (Button)sender;
+        button.IsEnabled = false;
+        try
+        {
+            var result = await AiService.TestAsync(target.Value.Provider, target.Value.Model);
+            MessageBox.Show(result.Message, "连接检查", MessageBoxButton.OK,
+                result.Ok ? MessageBoxImage.Information : MessageBoxImage.Warning);
+        }
+        finally
+        {
+            button.IsEnabled = true;
+        }
     }
 
     private (TextBox Box, TextBlock Status, string Current)[] HotkeyRows => new[]
@@ -163,50 +227,18 @@ public partial class SettingsWindow : Window
     {
         try
         {
-            var exe = Environment.ProcessPath ?? System.IO.Path.Combine(AppContext.BaseDirectory, "GuaishushuViewer.exe");
+            var exe = Environment.ProcessPath ?? System.IO.Path.Combine(AppContext.BaseDirectory, $"{AppInfo.Name}.exe");
             var errors = DefaultAssociationService.ApplyAll(exe, SupportedFormats.All);
             MessageBox.Show(errors.Count == 0
                     ? "已把支持的图片、脑图与流程图格式设为默认打开方式，并注入右键菜单。"
                     : "部分格式未成功：\n" + string.Join("\n", errors),
-                "怪叔叔看图", MessageBoxButton.OK,
+                AppInfo.Name, MessageBoxButton.OK,
                 errors.Count == 0 ? MessageBoxImage.Information : MessageBoxImage.Warning);
         }
         catch (Exception ex)
         {
-            MessageBox.Show("应用默认关联失败：" + ex.Message, "怪叔叔看图",
+            MessageBox.Show("应用默认关联失败：" + ex.Message, AppInfo.Name,
                 MessageBoxButton.OK, MessageBoxImage.Error);
-        }
-    }
-
-    private async void TestAi_Click(object sender, RoutedEventArgs e)
-    {
-        var endpoint = AiEndpointBox.Text.Trim();
-        var model = AiModelBox.Text.Trim();
-        var key = AiKeyBox.Text.Trim();
-        if (endpoint.Length == 0 || model.Length == 0)
-        {
-            MessageBox.Show("请先填写接口地址与模型名称。", "API 测试", MessageBoxButton.OK, MessageBoxImage.Information);
-            return;
-        }
-        var saved = App.Settings;
-        var previous = (saved.AiEndpoint, saved.AiModel, saved.AiKey);
-        saved.AiEndpoint = endpoint;
-        saved.AiModel = model;
-        saved.AiKey = key;
-        try
-        {
-            var reply = await AiService.TranslateTextAsync("hello");
-            MessageBox.Show($"连接成功！模型返回：\n{reply}", "API 测试", MessageBoxButton.OK, MessageBoxImage.Information);
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show($"连接失败：{ex.Message}", "API 测试", MessageBoxButton.OK, MessageBoxImage.Warning);
-        }
-        finally
-        {
-            saved.AiEndpoint = previous.AiEndpoint;
-            saved.AiModel = previous.AiModel;
-            saved.AiKey = previous.AiKey;
         }
     }
 
@@ -235,8 +267,6 @@ public partial class SettingsWindow : Window
             return;
         }
 
-        // Warn about external conflicts / system-reserved combos, but let the user save:
-        // conflict detection is advisory and Windows may free the combo later.
         var conflicts = hotkeys
             .Select((spec, i) => HotkeyConflictService.Check(spec,
                 hotkeys.Where((_, j) => j != i).ToList(),
@@ -304,10 +334,11 @@ public partial class SettingsWindow : Window
             AssociateAsDefaultViewer = AssociateBox.IsChecked == true,
             DefaultPenWidth = double.TryParse(PenWidthBox.Text, NumberStyles.Float, CultureInfo.InvariantCulture, out var pw)
                 ? Math.Clamp(pw, 1, 24) : 3,
-            AiEndpoint = AiEndpointBox.Text.Trim(),
-            AiModel = AiModelBox.Text.Trim(),
-            AiKey = AiKeyBox.Text.Trim(),
-            AiTargetLanguage = string.IsNullOrWhiteSpace(AiLanguageBox.Text) ? "简体中文" : AiLanguageBox.Text.Trim(),
+            AiEndpoint = App.Settings.AiEndpoint,
+            AiModel = App.Settings.AiModel,
+            AiKey = App.Settings.AiKey,
+            AiTargetLanguage = App.Settings.AiConfig.TargetLanguage,
+            AiConfig = App.Settings.AiConfig.Clone(),
             Adjustments = App.Settings.Adjustments?.Clone() ?? new ImageAdjustments(),
             PreviousAssociations = new Dictionary<string, string?>(App.Settings.PreviousAssociations)
         };

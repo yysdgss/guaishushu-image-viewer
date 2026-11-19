@@ -1,0 +1,256 @@
+<Window x:Class="WBImageViewer.Views.AiProviderWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="怪叔叔看图 - 大模型配置中心"
+        Width="940" Height="660" MinWidth="820" MinHeight="560"
+        ResizeMode="CanResize" WindowStartupLocation="CenterScreen"
+        Background="#FFF7F8FA" FontSize="13">
+
+    <Window.Resources>
+        <Style x:Key="Card" TargetType="Border">
+            <Setter Property="Background" Value="#FFFFFFFF" />
+            <Setter Property="BorderBrush" Value="#FFE2E6EC" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="14" />
+            <Setter Property="Margin" Value="0,0,0,12" />
+        </Style>
+        <Style x:Key="SectionTitle" TargetType="TextBlock">
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="Foreground" Value="#FF243040" />
+            <Setter Property="Margin" Value="0,0,0,10" />
+        </Style>
+        <Style x:Key="FieldLabel" TargetType="TextBlock">
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Foreground" Value="#FF4B5563" />
+            <Setter Property="Margin" Value="0,0,10,0" />
+        </Style>
+        <Style x:Key="PrimaryButton" TargetType="Button">
+            <Setter Property="Padding" Value="14,7" />
+            <Setter Property="Background" Value="#FF2F6FBB" />
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
+        </Style>
+        <Style x:Key="SoftButton" TargetType="Button">
+            <Setter Property="Padding" Value="10,5" />
+            <Setter Property="Background" Value="#FFEEF3F9" />
+            <Setter Property="Foreground" Value="#FF2F4A67" />
+            <Setter Property="BorderBrush" Value="#FFD4E0EE" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Cursor" Value="Hand" />
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <DockPanel Grid.Row="0" Margin="0,0,0,14">
+            <StackPanel>
+                <TextBlock Text="供应商与模型管理" FontSize="18" FontWeight="SemiBold" Foreground="#FF1F2937" />
+                <TextBlock Text="按供应商分组维护多个大模型；翻译与文字识别可分别指定默认模型。" Margin="0,4,0,0"
+                           Foreground="#FF6B7280" FontSize="12" />
+            </StackPanel>
+            <Button Content="关闭" DockPanel.Dock="Right" HorizontalAlignment="Right" Style="{StaticResource SoftButton}"
+                    IsCancel="True" />
+        </DockPanel>
+
+        <!-- Main: supplier list + editor -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="250" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <!-- Suppliers -->
+            <Border Grid.Column="0" Style="{StaticResource Card}" Margin="0,0,12,0">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Top" Text="供应商" Style="{StaticResource SectionTitle}" />
+                    <StackPanel DockPanel.Dock="Bottom" Margin="0,10,0,0">
+                        <WrapPanel>
+                            <Button x:Name="AddProviderButton" Content="添加" Style="{StaticResource SoftButton}"
+                                    Click="AddProvider_Click" Margin="0,0,6,6" />
+                            <Button x:Name="DuplicateProviderButton" Content="复制" Style="{StaticResource SoftButton}"
+                                    Click="DuplicateProvider_Click" Margin="0,0,6,6" />
+                            <Button x:Name="RemoveProviderButton" Content="删除" Style="{StaticResource SoftButton}"
+                                    Click="RemoveProvider_Click" Margin="0,0,6,6" />
+                        </WrapPanel>
+                        <Button x:Name="CodexRouteButton" Content="一键对接 Codex++ 本地路由" Style="{StaticResource SoftButton}"
+                                Click="CodexRoute_Click" Margin="0,2,0,0" />
+                        <TextBlock x:Name="RouteHint" Text="自动探测 8317 / 1234 / 11434 等本地网关并拉取模型。"
+                                   FontSize="10" Foreground="#FF8A94A3" TextWrapping="Wrap" Margin="0,6,0,0" />
+                        <ListBox x:Name="RouteList" Visibility="Collapsed" Height="104" Margin="0,6,0,0"
+                                 MouseDoubleClick="RouteList_DoubleClick" ToolTip="双击采用该路由">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding Label}" TextTrimming="CharacterEllipsis" FontSize="11" />
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </StackPanel>
+                    <ListBox x:Name="ProviderList" SelectionChanged="ProviderList_SelectionChanged"
+                             BorderBrush="#FFE2E6EC" BorderThickness="1">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Margin="2,3">
+                                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" Foreground="#FF243040" />
+                                    <TextBlock FontSize="10" Foreground="#FF8A94A3">
+                                        <Run Text="{Binding ProtocolText, Mode=OneWay}" />
+                                        <Run Text=" · " />
+                                        <Run Text="{Binding ModelCountText, Mode=OneWay}" />
+                                    </TextBlock>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
+            </Border>
+
+            <!-- Editor -->
+            <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                <StackPanel>
+
+                    <Border Style="{StaticResource Card}">
+                        <StackPanel>
+                            <TextBlock Text="供应商信息" Style="{StaticResource SectionTitle}" />
+                            <Grid Margin="0,0,0,8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="110" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="供应商名称" Style="{StaticResource FieldLabel}" />
+                                <TextBox x:Name="ProviderNameBox" Grid.Column="1" TextChanged="ProviderField_Changed" />
+                            </Grid>
+                            <Grid Margin="0,0,0,8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="110" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="接口类型" Style="{StaticResource FieldLabel}" />
+                                <ComboBox x:Name="ProtocolBox" Grid.Column="1" SelectionChanged="ProviderField_Changed">
+                                    <ComboBoxItem Content="Chat Completions（OpenAI 兼容）" Tag="ChatCompletions" />
+                                    <ComboBoxItem Content="Responses（Codex++ 常用）" Tag="Responses" />
+                                </ComboBox>
+                            </Grid>
+                            <Grid Margin="0,0,0,8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="110" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="调用地址" Style="{StaticResource FieldLabel}" />
+                                <TextBox x:Name="BaseUrlBox" Grid.Column="1" TextChanged="ProviderField_Changed"
+                                         ToolTip="例如 http://127.0.0.1:8317/v1 或 https://api.openai.com/v1" />
+                            </Grid>
+                            <Grid Margin="0,0,0,8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="110" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="API 密钥" Style="{StaticResource FieldLabel}" />
+                                <PasswordBox x:Name="ApiKeyBox" Grid.Column="1" PasswordChanged="ApiKeyBox_PasswordChanged" />
+                            </Grid>
+                            <CheckBox x:Name="ProviderEnabledBox" Content="启用该供应商" IsChecked="True"
+                                      Checked="ProviderField_Changed" Unchecked="ProviderField_Changed" Foreground="#FF374151" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource Card}">
+                        <StackPanel>
+                            <DockPanel Margin="0,0,0,10">
+                                <TextBlock Text="模型列表（勾选即可批量添加）" Style="{StaticResource SectionTitle}" />
+                                <Button x:Name="FetchModelsButton" Content="从上游获取模型" DockPanel.Dock="Right"
+                                        HorizontalAlignment="Right" Style="{StaticResource SoftButton}"
+                                        Click="FetchModels_Click" />
+                            </DockPanel>
+                            <ListBox x:Name="ModelList" Height="180" BorderBrush="#FFE2E6EC" BorderThickness="1"
+                                     SelectionMode="Extended">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <CheckBox IsChecked="{Binding Selected, Mode=TwoWay}" Content="{Binding Id}"
+                                                  Foreground="#FF243040" />
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                            <Grid Margin="0,8,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBox x:Name="NewModelBox" Grid.Column="0" Margin="0,0,8,0"
+                                         ToolTip="上游不提供模型列表时，可手动填写模型 ID" />
+                                <Button Grid.Column="1" Content="添加模型" Style="{StaticResource SoftButton}" Click="AddModel_Click" />
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource Card}">
+                        <StackPanel>
+                            <TextBlock Text="连接检查" Style="{StaticResource SectionTitle}" />
+                            <Grid Margin="0,0,0,8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="110" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="测试模型" Style="{StaticResource FieldLabel}" />
+                                <ComboBox x:Name="TestModelBox" Grid.Column="1" Margin="0,0,8,0"
+                                          IsEditable="True" ToolTip="可选择已添加模型，也可直接输入" />
+                                <Button Grid.Column="2" Content="测试连接" Style="{StaticResource SoftButton}" Click="TestConnection_Click" />
+                            </Grid>
+                            <TextBlock x:Name="TestResultText" Text="尚未测试。" TextWrapping="Wrap"
+                                       Foreground="#FF6B7280" FontSize="12" />
+                        </StackPanel>
+                    </Border>
+
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
+
+        <!-- Default bindings -->
+        <Border Grid.Row="2" Style="{StaticResource Card}" Margin="0,12,0,0">
+            <StackPanel>
+                <TextBlock Text="默认模型（翻译与识别互相独立）" Style="{StaticResource SectionTitle}" />
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="90" />
+                        <ColumnDefinition Width="200" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0" Grid.Column="0" Text="翻译" VerticalAlignment="Center" Foreground="#FF374151" />
+                    <ComboBox x:Name="TranslateProviderBox" Grid.Row="0" Grid.Column="1" Margin="0,0,8,6"
+                              DisplayMemberPath="Name" SelectionChanged="DefaultBinding_Changed" />
+                    <ComboBox x:Name="TranslateModelBox" Grid.Row="0" Grid.Column="2" Margin="0,0,0,6"
+                              IsEditable="True" />
+
+                    <TextBlock Grid.Row="1" Grid.Column="0" Text="文字识别" VerticalAlignment="Center" Foreground="#FF374151" />
+                    <ComboBox x:Name="OcrProviderBox" Grid.Row="1" Grid.Column="1" Margin="0,0,8,6"
+                              DisplayMemberPath="Name" SelectionChanged="DefaultBinding_Changed" />
+                    <ComboBox x:Name="OcrModelBox" Grid.Row="1" Grid.Column="2" Margin="0,0,0,6" IsEditable="True" />
+
+                    <TextBlock Grid.Row="2" Grid.Column="0" Text="目标语言" VerticalAlignment="Center" Foreground="#FF374151" />
+                    <TextBox x:Name="TargetLanguageBox" Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2"
+                             Margin="0,0,0,0" ToolTip="翻译结果使用的语言，例如：简体中文 / English / 日本語" />
+                </Grid>
+            </StackPanel>
+        </Border>
+
+        <!-- Footer -->
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+            <Button Content="保存配置" Width="110" Padding="10,7" Style="{StaticResource PrimaryButton}" Click="Save_Click" />
+            <Button Content="取消" Width="90" Padding="10,7" Margin="10,0,0,0" IsCancel="True" />
+        </StackPanel>
+    </Grid>
+</Window>

@@ -18,10 +18,10 @@
 | --- | --- |
 | 软件名称 | 怪叔叔看图 |
 | 产品常量 | `AppInfo.Name = "怪叔叔看图"` |
-| 程序集名 | `GuaishushuViewer` |
-| 当前版本 | `4.1.0` |
+| 程序集名 | `怪叔叔看图`（安装器：`怪叔叔看图安装程序`）|
+| 当前版本 | `4.2.0` |
 | 仓库 | `https://github.com/yysdgss/guaishushu-image-viewer` |
-| Release | `https://github.com/yysdgss/guaishushu-image-viewer/releases/tag/v4.1.0` |
+| Release | `https://github.com/yysdgss/guaishushu-image-viewer/releases/tag/v4.2.0` |
 | 许可 | MIT |
 | 目标框架 | `net10.0-windows` |
 | UI 框架 | WPF |
@@ -3532,9 +3532,31 @@ RedrawAnnotations();
 - **需求**：翻页卡顿；需要控制末张后的循环行为。
 - **实现**：新增 12 项冻结 Bgra32 解码 LRU 缓存，去掉加载时重复布局与重绘；播放列表复用同一 List 实例并只更新选中项；`AppSettings.LoopPlaylist` 与后台复选框控制循环，关闭后边界翻页按钮置灰且点击闪动提示（R108）。
 
+### R109 后台设置分类与滚动布局
+
+- **需求**：设置项全部堆在一页导致超出屏幕；需要分类、滚动条与常规窗口按钮。
+- **实现**：`SettingsWindow.xaml` 重写为 860x600 可缩放窗口，左侧 `CategoryList` 六类导航（常规/外观/交互/快捷键/大模型/关于），右侧每类独立 `ScrollViewer`；顶部与底部均提供关闭/取消按钮（R109）。
+
+### R110 大模型配置中心
+
+- **需求**：支持供应商名称、调用地址、接口类型、API、模型库拉取与批量勾选；翻译/识别分别指定默认模型；连接测速与 Codex++ 本地路由一键对接。
+- **实现**：新增 `Models/AiProviderModels.cs`（`AiProvider` / `AiModelEntry` / `AiProviderConfig`，翻译与识别默认绑定互相独立）；重写 `Services/AiService.cs` 按用途解析供应商/模型，支持 Chat Completions 与 Responses、`/models` 上游拉取、Stopwatch 连接测速与 8317/1234/11434 等本地路由并发探测；新增 `Views/AiProviderWindow.xaml(.cs)` 提供 Codex++ 风格供应商管理界面；`SettingsService` 将旧版单供应商配置迁移到 `AiConfig`（R110）。
+
+### R111 软件名称全中文
+
+- **需求**：任务管理器、封装产物等仍显示拼音 `GuaishushuViewer`，需全部改为中文且不产生批处理乱码。
+- **实现**：主程序与安装器 `.csproj` 的 `AssemblyName/AssemblyTitle/FileDescription` 改为中文；程序集名、exe 名、安装目录、卸载项、快捷方式、文件关联 ProgID/Verb、单实例管道、注册表键全部中文；卸载时同时清理旧拼音键与目录。两个封装 bat 改为纯 ASCII 文本，加入 `chcp 65001`，版本仍从 `<Version>` 读取，exe 名通过 `for` 枚举发布目录获得，不在 bat 中写入任何非 ASCII 字节（R111）。
+
 ---
 
 ## 11. 版本变更记录
+
+### 4.2.0（2026-11-19）
+
+- 后台设置重构为六类导航 + 独立滚动区 + 可缩放窗口（R109）。
+- 新增大模型配置中心：多供应商分组、上游模型库批量勾选、Chat Completions/Responses、翻译与识别独立默认模型、连接测速、Codex++ 本地路由一键对接（R110）。
+- 软件名称全链路中文，任务管理器与所有产物显示“怪叔叔看图”；封装 bat 纯 ASCII 化，彻底规避中文乱码（R111）。
+- 编译 0 警告 0 错误。
 
 ### 4.1.0（2026-11-19）
 

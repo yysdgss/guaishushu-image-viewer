@@ -3,186 +3,356 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="怪叔叔看图 - 后台设置"
         Icon="Assets/app.ico"
-        Width="520" SizeToContent="Height"
-        ResizeMode="NoResize"
+        Width="860" Height="600" MinWidth="720" MinHeight="480"
+        ResizeMode="CanResize"
         WindowStartupLocation="CenterScreen"
         Background="#FFF7F8FA"
         FontSize="13">
 
-    <StackPanel Margin="18,16,18,18">
-        <TextBlock Text="运行方式" FontWeight="SemiBold" Margin="0,0,0,6" />
-        <CheckBox x:Name="SingleWindowBox" Content="单窗口模式：新图片替换当前面板（关闭则每打开一张图片开一个新面板）" Margin="0,0,0,14" />
-        <CheckBox x:Name="LoopPlaylistBox" Content="图片轮播：上一页 / 下一页到最后一张后循环（关闭后到边界的翻页按钮禁用并闪动提示）" Margin="0,0,0,14" />
+    <Window.Resources>
+        <Style x:Key="Card" TargetType="Border">
+            <Setter Property="Background" Value="#FFFFFFFF" />
+            <Setter Property="BorderBrush" Value="#FFE2E6EC" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="16" />
+            <Setter Property="Margin" Value="0,0,0,12" />
+        </Style>
+        <Style x:Key="SectionTitle" TargetType="TextBlock">
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="Foreground" Value="#FF243040" />
+            <Setter Property="Margin" Value="0,0,0,10" />
+        </Style>
+        <Style x:Key="FieldLabel" TargetType="TextBlock">
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Foreground" Value="#FF4B5563" />
+            <Setter Property="Margin" Value="0,0,10,0" />
+        </Style>
+        <Style x:Key="SoftButton" TargetType="Button">
+            <Setter Property="Padding" Value="10,5" />
+            <Setter Property="Background" Value="#FFEEF3F9" />
+            <Setter Property="Foreground" Value="#FF2F4A67" />
+            <Setter Property="BorderBrush" Value="#FFD4E0EE" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Cursor" Value="Hand" />
+        </Style>
+    </Window.Resources>
 
-        <TextBlock Text="拖动窗口的方式（悬停在图片上）" FontWeight="SemiBold" Margin="0,0,0,6" />
-        <ComboBox x:Name="MoveModeBox" Margin="0,0,0,14">
-            <ComboBoxItem Content="鼠标右键拖动（默认）" Tag="RightButton" />
-            <ComboBoxItem Content="按住鼠标滚轮 / 中键拖动" Tag="MiddleButton" />
-            <ComboBoxItem Content="按住空格 + 鼠标左键拖动" Tag="SpaceAndLeftButton" />
-        </ComboBox>
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
 
-        <TextBlock Text="标注罗盘触发方式（按住修饰键 + 鼠标键拖动到扇区）" FontWeight="SemiBold" Margin="0,0,0,6" />
-        <Grid Margin="0,0,0,14">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="190" />
-                <ColumnDefinition Width="*" />
-            </Grid.ColumnDefinitions>
-            <TextBlock Text="修饰键" VerticalAlignment="Center" />
-            <ComboBox x:Name="CompassModifierBox" Grid.Column="1">
-                <ComboBoxItem Content="Ctrl（默认）" Tag="Ctrl" />
-                <ComboBoxItem Content="Shift" Tag="Shift" />
-                <ComboBoxItem Content="Alt" Tag="Alt" />
-                <ComboBoxItem Content="Ctrl + Shift" Tag="CtrlShift" />
-                <ComboBoxItem Content="Ctrl + Alt" Tag="CtrlAlt" />
-                <ComboBoxItem Content="Shift + Alt" Tag="ShiftAlt" />
-            </ComboBox>
-        </Grid>
-        <Grid Margin="0,0,0,14">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="190" />
-                <ColumnDefinition Width="*" />
-            </Grid.ColumnDefinitions>
-            <TextBlock Text="鼠标键" VerticalAlignment="Center" />
-            <ComboBox x:Name="CompassButtonBox" Grid.Column="1">
-                <ComboBoxItem Content="右键（默认）" Tag="Right" />
-                <ComboBoxItem Content="中键" Tag="Middle" />
-            </ComboBox>
-        </Grid>
-
-        <DockPanel Margin="0,0,0,6">
-            <TextBlock Text="全局快捷键（点击输入框后直接按下组合键，Esc 清空）" FontWeight="SemiBold" VerticalAlignment="Center" />
-            <Button Content="检测快捷键冲突" HorizontalAlignment="Right" Padding="10,3" Click="CheckConflicts_Click" />
+        <!-- Header -->
+        <DockPanel Grid.Row="0" Margin="0,0,0,12">
+            <StackPanel>
+                <TextBlock Text="后台设置" FontSize="18" FontWeight="SemiBold" Foreground="#FF1F2937" />
+                <TextBlock Text="按类别管理；每项内容超出时可在右侧滚动。修改后点击“保存设置”生效。"
+                           Foreground="#FF6B7280" FontSize="12" Margin="0,4,0,0" />
+            </StackPanel>
+            <Button Content="关闭" DockPanel.Dock="Right" HorizontalAlignment="Right" Style="{StaticResource SoftButton}"
+                    IsCancel="True" />
         </DockPanel>
-        <Grid Margin="0,0,0,14">
+
+        <!-- Category navigation + scrollable content -->
+        <Grid Grid.Row="1">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="190" />
+                <ColumnDefinition Width="170" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
-            </Grid.RowDefinitions>
 
-            <TextBlock Grid.Row="0" Grid.Column="0" Text="切换置顶显示" VerticalAlignment="Center" />
-            <StackPanel Grid.Row="0" Grid.Column="1" Margin="0,0,0,5">
-                <TextBox x:Name="TopMostBox" />
-                <TextBlock x:Name="TopMostConflict" FontSize="10" Foreground="#FF6B7280" IsHitTestVisible="False" />
+            <Border Grid.Column="0" Background="#FFFFFFFF" BorderBrush="#FFE2E6EC" BorderThickness="1"
+                    CornerRadius="8" Margin="0,0,12,0" Padding="8">
+                <ListBox x:Name="CategoryList" BorderThickness="0" Background="Transparent"
+                         SelectionChanged="CategoryList_SelectionChanged">
+                    <ListBoxItem Content="常规" Tag="General" IsSelected="True" />
+                    <ListBoxItem Content="外观" Tag="Appearance" />
+                    <ListBoxItem Content="交互" Tag="Interaction" />
+                    <ListBoxItem Content="快捷键" Tag="Hotkeys" />
+                    <ListBoxItem Content="大模型" Tag="Models" />
+                    <ListBoxItem Content="关于" Tag="About" />
+                </ListBox>
+            </Border>
+
+            <Grid Grid.Column="1">
+                <!-- 常规 -->
+                <ScrollViewer x:Name="PageGeneral" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel>
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
+                                <TextBlock Text="运行方式" Style="{StaticResource SectionTitle}" />
+                                <CheckBox x:Name="SingleWindowBox" Content="单窗口模式：新图片替换当前面板（关闭则每打开一张图片开一个新面板）"
+                                          Margin="0,0,0,10" Foreground="#FF374151" />
+                                <CheckBox x:Name="LoopPlaylistBox" Content="图片轮播：上一页 / 下一页到最后一张后循环（关闭后到边界的翻页按钮禁用并闪动提示）"
+                                          Foreground="#FF374151" />
+                            </StackPanel>
+                        </Border>
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
+                                <TextBlock Text="文件关联" Style="{StaticResource SectionTitle}" />
+                                <CheckBox x:Name="AssociateBox" Content="注册为系统默认图片查看器并注入右键菜单（启动时自动应用）"
+                                          Margin="0,0,0,6" Foreground="#FF374151" />
+                                <TextBlock Text="使用系统 UserChoice 哈希静默设为默认；若 Windows 未来更新改变算法，错误会即时提示。"
+                                           Foreground="#FF6B7280" FontSize="11" Margin="21,0,0,10" TextWrapping="Wrap" />
+                                <Button Content="立即应用默认关联" HorizontalAlignment="Left" Padding="12,6"
+                                        Style="{StaticResource SoftButton}" Margin="21,0,0,0" Click="ApplyDefaults_Click" />
+                            </StackPanel>
+                        </Border>
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
+                                <TextBlock Text="图片处理" Style="{StaticResource SectionTitle}" />
+                                <CheckBox x:Name="AutoOptimizeBox" Content="打开图片时自动应用智能优化预设（全部归零即恢复原始图片）"
+                                          Foreground="#FF374151" />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <!-- 外观 -->
+                <ScrollViewer x:Name="PageAppearance" Visibility="Collapsed" VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel>
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
+                                <TextBlock Text="面板外观" Style="{StaticResource SectionTitle}" />
+                                <Grid Margin="0,0,0,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="180" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="圆角半径（0 - 24，0 为直角）" Style="{StaticResource FieldLabel}"
+                                               TextWrapping="Wrap" />
+                                    <TextBox x:Name="CornerRadiusBox" Grid.Column="1" />
+                                </Grid>
+                                <Grid Margin="0,0,0,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="180" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="背景颜色（#RRGGBB）" Style="{StaticResource FieldLabel}" />
+                                    <Grid Grid.Column="1">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBox x:Name="BackgroundColorBox" />
+                                        <Button Grid.Column="1" Content="选择颜色…" Margin="8,0,0,0" Padding="10,4"
+                                                Style="{StaticResource SoftButton}" Click="PickColor_Click" />
+                                    </Grid>
+                                </Grid>
+                                <TextBlock x:Name="OpacityLabel" Text="面板背景不透明度 100%（图片不受影响）"
+                                           FontWeight="SemiBold" Foreground="#FF374151" Margin="0,6,0,4" />
+                                <Slider x:Name="OpacitySlider" Minimum="0.2" Maximum="1" SmallChange="0.05"
+                                        LargeChange="0.1" ValueChanged="OpacitySlider_ValueChanged" />
+                            </StackPanel>
+                        </Border>
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
+                                <TextBlock Text="涂鸦默认设置" Style="{StaticResource SectionTitle}" />
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="180" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="自然书写笔触直径 (px)" Style="{StaticResource FieldLabel}" />
+                                    <TextBox x:Name="PenWidthBox" Grid.Column="1" />
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <!-- 交互 -->
+                <ScrollViewer x:Name="PageInteraction" Visibility="Collapsed" VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel>
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
+                                <TextBlock Text="窗口与罗盘" Style="{StaticResource SectionTitle}" />
+                                <Grid Margin="0,0,0,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="210" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="拖动窗口的方式（悬停在图片上）" Style="{StaticResource FieldLabel}"
+                                               TextWrapping="Wrap" />
+                                    <ComboBox x:Name="MoveModeBox" Grid.Column="1">
+                                        <ComboBoxItem Content="鼠标右键拖动（默认）" Tag="RightButton" />
+                                        <ComboBoxItem Content="按住鼠标滚轮 / 中键拖动" Tag="MiddleButton" />
+                                        <ComboBoxItem Content="按住空格 + 鼠标左键拖动" Tag="SpaceAndLeftButton" />
+                                    </ComboBox>
+                                </Grid>
+                                <TextBlock Text="标注罗盘触发（修饰键 + 鼠标键拖动到扇区）" FontWeight="SemiBold"
+                                           Foreground="#FF374151" Margin="0,6,0,8" />
+                                <Grid Margin="0,0,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="210" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="修饰键" Style="{StaticResource FieldLabel}" />
+                                    <ComboBox x:Name="CompassModifierBox" Grid.Column="1">
+                                        <ComboBoxItem Content="Ctrl（默认）" Tag="Ctrl" />
+                                        <ComboBoxItem Content="Shift" Tag="Shift" />
+                                        <ComboBoxItem Content="Alt" Tag="Alt" />
+                                        <ComboBoxItem Content="Ctrl + Shift" Tag="CtrlShift" />
+                                        <ComboBoxItem Content="Ctrl + Alt" Tag="CtrlAlt" />
+                                        <ComboBoxItem Content="Shift + Alt" Tag="ShiftAlt" />
+                                    </ComboBox>
+                                </Grid>
+                                <Grid Margin="0,0,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="210" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="鼠标键" Style="{StaticResource FieldLabel}" />
+                                    <ComboBox x:Name="CompassButtonBox" Grid.Column="1">
+                                        <ComboBoxItem Content="右键（默认）" Tag="Right" />
+                                        <ComboBoxItem Content="中键" Tag="Middle" />
+                                    </ComboBox>
+                                </Grid>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="210" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="按住修饰键 + 滚轮：窗口随图片缩放" Style="{StaticResource FieldLabel}"
+                                               TextWrapping="Wrap" />
+                                    <ComboBox x:Name="WheelModifierBox" Grid.Column="1">
+                                        <ComboBoxItem Content="Ctrl（默认）" Tag="Ctrl" />
+                                        <ComboBoxItem Content="Shift" Tag="Shift" />
+                                        <ComboBoxItem Content="Alt" Tag="Alt" />
+                                        <ComboBoxItem Content="Shift + Ctrl" Tag="Shift+Ctrl" />
+                                        <ComboBoxItem Content="Ctrl + Alt" Tag="Ctrl+Alt" />
+                                        <ComboBoxItem Content="Shift + Alt" Tag="Shift+Alt" />
+                                    </ComboBox>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
+                                <TextBlock Text="缩放" Style="{StaticResource SectionTitle}" />
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="210" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="滚轮缩放步长（大于 1，例如 1.2）" Style="{StaticResource FieldLabel}" />
+                                    <TextBox x:Name="ZoomStepBox" Grid.Column="1" />
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <!-- 快捷键 -->
+                <ScrollViewer x:Name="PageHotkeys" Visibility="Collapsed" VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled">
+                    <Border Style="{StaticResource Card}">
+                        <StackPanel>
+                            <DockPanel Margin="0,0,0,10">
+                                <TextBlock Text="全局快捷键" Style="{StaticResource SectionTitle}" />
+                                <Button Content="检测快捷键冲突" DockPanel.Dock="Right" HorizontalAlignment="Right"
+                                        Padding="10,3" Style="{StaticResource SoftButton}" Click="CheckConflicts_Click" />
+                            </DockPanel>
+                            <TextBlock Text="点击输入框后直接按下组合键，Esc 清空。"
+                                       Foreground="#FF6B7280" FontSize="11" Margin="0,0,0,10" />
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="210" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="切换置顶显示" Style="{StaticResource FieldLabel}" />
+                                <StackPanel Grid.Row="0" Grid.Column="1" Margin="0,0,0,8">
+                                    <TextBox x:Name="TopMostBox" />
+                                    <TextBlock x:Name="TopMostConflict" FontSize="10" Foreground="#FF6B7280" />
+                                </StackPanel>
+
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="窗口贴合当前图片大小" Style="{StaticResource FieldLabel}" />
+                                <StackPanel Grid.Row="1" Grid.Column="1" Margin="0,0,0,8">
+                                    <TextBox x:Name="FitWindowBox" />
+                                    <TextBlock x:Name="FitWindowConflict" FontSize="10" Foreground="#FF6B7280" />
+                                </StackPanel>
+
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="图片平铺到当前窗口" Style="{StaticResource FieldLabel}" />
+                                <StackPanel Grid.Row="2" Grid.Column="1" Margin="0,0,0,8">
+                                    <TextBox x:Name="FitImageBox" />
+                                    <TextBlock x:Name="FitImageConflict" FontSize="10" Foreground="#FF6B7280" />
+                                </StackPanel>
+
+                                <TextBlock Grid.Row="3" Grid.Column="0" Text="全局截图" Style="{StaticResource FieldLabel}" />
+                                <StackPanel Grid.Row="3" Grid.Column="1">
+                                    <TextBox x:Name="ScreenshotBox" />
+                                    <TextBlock x:Name="ScreenshotConflict" FontSize="10" Foreground="#FF6B7280" />
+                                </StackPanel>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+                </ScrollViewer>
+
+                <!-- 大模型 -->
+                <ScrollViewer x:Name="PageModels" Visibility="Collapsed" VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel>
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
+                                <TextBlock Text="大模型配置中心" Style="{StaticResource SectionTitle}" />
+                                <TextBlock Text="按供应商分组管理多个模型，从上游拉取模型库并批量勾选；翻译与文字识别可分别指定默认模型，并支持连接测速与一键对接 Codex++ 本地路由。"
+                                           Foreground="#FF6B7280" TextWrapping="Wrap" Margin="0,0,0,14" />
+                                <TextBlock x:Name="AiSummary" Text="尚未配置大模型。" Foreground="#FF374151"
+                                           TextWrapping="Wrap" Margin="0,0,0,14" />
+                                <StackPanel Orientation="Horizontal">
+                                    <Button Content="配置大模型…" Padding="14,7" Style="{StaticResource SoftButton}"
+                                            Click="OpenAiConfig_Click" />
+                                    <Button x:Name="TestDefaultAiButton" Content="检查默认模型连接" Padding="14,7"
+                                            Margin="8,0,0,0" Style="{StaticResource SoftButton}" Click="TestDefaultAi_Click" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
+                                <TextBlock Text="翻译目标语言" Style="{StaticResource SectionTitle}" />
+                                <TextBlock Text="在“配置大模型”窗口中设置；不同功能可调用不同模型。"
+                                           Foreground="#FF6B7280" FontSize="11" />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <!-- 关于 -->
+                <ScrollViewer x:Name="PageAbout" Visibility="Collapsed" VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled">
+                    <Border Style="{StaticResource Card}">
+                        <StackPanel>
+                            <TextBlock Text="关于 怪叔叔看图" Style="{StaticResource SectionTitle}" />
+                            <TextBlock x:Name="AboutVersion" Text="" Foreground="#FF374151" Margin="0,0,0,6" />
+                            <TextBlock Text="无边框置顶看图 · 标注罗盘 · 截图钉桌面 · 大模型识别与翻译"
+                                       Foreground="#FF6B7280" TextWrapping="Wrap" Margin="0,0,0,6" />
+                            <TextBlock Text="项目主页：github.com/yysdgss/guaishushu-image-viewer"
+                                       Foreground="#FF6B7280" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Border>
+                </ScrollViewer>
+            </Grid>
+        </Grid>
+
+        <!-- Footer -->
+        <DockPanel Grid.Row="2" Margin="0,12,0,0">
+            <TextBlock Text="设置会立即写入后台配置。" DockPanel.Dock="Left" VerticalAlignment="Center"
+                       Foreground="#FF9AA3AF" FontSize="11" />
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button Content="保存设置" Width="100" Padding="10,7" IsDefault="True" Click="Save_Click" />
+                <Button Content="取消" Width="88" Padding="10,7" Margin="10,0,0,0" IsCancel="True" />
             </StackPanel>
-
-            <TextBlock Grid.Row="1" Grid.Column="0" Text="窗口贴合当前图片大小" VerticalAlignment="Center" />
-            <StackPanel Grid.Row="1" Grid.Column="1" Margin="0,0,0,5">
-                <TextBox x:Name="FitWindowBox" />
-                <TextBlock x:Name="FitWindowConflict" FontSize="10" Foreground="#FF6B7280" IsHitTestVisible="False" />
-            </StackPanel>
-
-            <TextBlock Grid.Row="2" Grid.Column="0" Text="图片平铺到当前窗口" VerticalAlignment="Center" />
-            <StackPanel Grid.Row="2" Grid.Column="1" Margin="0,0,0,5">
-                <TextBox x:Name="FitImageBox" />
-                <TextBlock x:Name="FitImageConflict" FontSize="10" Foreground="#FF6B7280" IsHitTestVisible="False" />
-            </StackPanel>
-
-            <TextBlock Grid.Row="3" Grid.Column="0" Text="按住修饰键 + 滚轮：窗口随图片一起缩放" VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,0,8,0" />
-            <ComboBox x:Name="WheelModifierBox" Grid.Row="3" Grid.Column="1">
-                <ComboBoxItem Content="Ctrl（默认）" Tag="Ctrl" />
-                <ComboBoxItem Content="Shift" Tag="Shift" />
-                <ComboBoxItem Content="Alt" Tag="Alt" />
-                <ComboBoxItem Content="Shift + Ctrl" Tag="Shift+Ctrl" />
-                <ComboBoxItem Content="Ctrl + Alt" Tag="Ctrl+Alt" />
-                <ComboBoxItem Content="Shift + Alt" Tag="Shift+Alt" />
-            </ComboBox>
-
-            <TextBlock Grid.Row="4" Grid.Column="0" Text="全局截图（矩形）" VerticalAlignment="Center" />
-            <StackPanel Grid.Row="4" Grid.Column="1" Margin="0,0,0,5">
-                <TextBox x:Name="ScreenshotBox" />
-                <TextBlock x:Name="ScreenshotConflict" FontSize="10" Foreground="#FF6B7280" IsHitTestVisible="False" />
-            </StackPanel>
-        </Grid>
-
-        <TextBlock Text="滚轮缩放步长（大于 1，例如 1.2）" FontWeight="SemiBold" Margin="0,0,0,6" />
-        <TextBox x:Name="ZoomStepBox" Margin="0,0,0,14" />
-
-        <TextBlock Text="面板圆角半径（0 - 24，0 为直角，由 DWM 绘制抗锯齿边缘）" FontWeight="SemiBold" Margin="0,0,0,6" />
-        <TextBox x:Name="CornerRadiusBox" Margin="0,0,0,14" />
-
-        <TextBlock Text="面板背景颜色（#RRGGBB）" FontWeight="SemiBold" Margin="0,0,0,6" />
-        <Grid Margin="0,0,0,14">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="140" />
-                <ColumnDefinition Width="*" />
-            </Grid.ColumnDefinitions>
-            <TextBox x:Name="BackgroundColorBox" />
-            <Button Grid.Column="1" Content="选择颜色…" HorizontalAlignment="Left" Margin="10,0,0,0"
-                    Padding="12,4" Click="PickColor_Click" />
-        </Grid>
-
-        <TextBlock x:Name="OpacityLabel" Text="面板背景不透明度 100%（图片不受影响）" FontWeight="SemiBold" Margin="0,0,0,6" />
-        <Slider x:Name="OpacitySlider" Minimum="0.2" Maximum="1" SmallChange="0.05" LargeChange="0.1"
-                Margin="0,0,0,14" ValueChanged="OpacitySlider_ValueChanged" />
-
-        <CheckBox x:Name="AutoOptimizeBox" Content="打开图片时自动应用智能优化预设（全部归零即恢复原始图片）"
-                  Margin="0,0,0,14" />
-
-        <CheckBox x:Name="AssociateBox" Content="注册为系统默认图片查看器并注入右键菜单（启动时自动应用）" Margin="0,0,0,4" />
-        <TextBlock Text="使用系统 UserChoice 哈希静默设为默认；若 Windows 未来更新改变算法，错误会即时提示。" Foreground="#FF6B7280" FontSize="11" Margin="21,0,0,8" />
-        <Button Content="立即应用默认关联" HorizontalAlignment="Left" Padding="12,6" Margin="21,0,0,14" Click="ApplyDefaults_Click" />
-
-        <TextBlock Text="涂鸦默认设置" FontWeight="SemiBold" Margin="0,6,0,6" />
-        <Grid Margin="0,0,0,14">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="190" />
-                <ColumnDefinition Width="*" />
-            </Grid.ColumnDefinitions>
-            <TextBlock Text="自然书写笔触直径 (px)" VerticalAlignment="Center" />
-            <TextBox x:Name="PenWidthBox" Grid.Column="1" />
-        </Grid>
-
-        <Border x:Name="AiSection" CornerRadius="8" BorderThickness="1" BorderBrush="Transparent"
-                Padding="8" Margin="0,4,0,14">
-        <StackPanel>
-        <TextBlock Text="大模型 API（截图 / 框选翻译、文字识别，兼容 OpenAI 格式）" FontWeight="SemiBold" Margin="0,0,0,6" />
-        <Grid Margin="0,0,0,6">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="190" />
-                <ColumnDefinition Width="*" />
-            </Grid.ColumnDefinitions>
-            <TextBlock Text="接口地址" VerticalAlignment="Center" />
-            <TextBox x:Name="AiEndpointBox" Grid.Column="1" />
-        </Grid>
-        <Grid Margin="0,0,0,6">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="190" />
-                <ColumnDefinition Width="*" />
-            </Grid.ColumnDefinitions>
-            <TextBlock Text="模型名称" VerticalAlignment="Center" />
-            <TextBox x:Name="AiModelBox" Grid.Column="1" />
-        </Grid>
-        <Grid Margin="0,0,0,6">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="190" />
-                <ColumnDefinition Width="*" />
-            </Grid.ColumnDefinitions>
-            <TextBlock Text="API 密钥" VerticalAlignment="Center" />
-            <TextBox x:Name="AiKeyBox" Grid.Column="1" />
-        </Grid>
-        <Grid Margin="0,0,0,14">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="190" />
-                <ColumnDefinition Width="*" />
-            </Grid.ColumnDefinitions>
-            <TextBlock Text="翻译目标语言" VerticalAlignment="Center" />
-            <TextBox x:Name="AiLanguageBox" Grid.Column="1" />
-        </Grid>
-        <Button Content="测试 API 连接" HorizontalAlignment="Left" Padding="12,6" Margin="0,0,0,4" Click="TestAi_Click" />
-        <TextBlock Text="未配置时，罗盘中的 AI 识别 / 翻译会提示并跳转到这里。" Foreground="#FF6B7280" FontSize="11" />
-        </StackPanel>
-        </Border>
-
-        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-            <Button Content="保存" Width="88" Padding="10,6" IsDefault="True" Click="Save_Click" />
-            <Button Content="取消" Width="88" Padding="10,6" Margin="10,0,0,0" IsCancel="True" />
-        </StackPanel>
-    </StackPanel>
+        </DockPanel>
+    </Grid>
 </Window>

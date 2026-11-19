@@ -6,7 +6,10 @@
     <UseWindowsForms>true</UseWindowsForms>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <AssemblyName>GuaishushuViewerSetup</AssemblyName>
+    <AssemblyName>怪叔叔看图安装程序</AssemblyName>
+    <AssemblyTitle>怪叔叔看图 安装程序</AssemblyTitle>
+    <FileDescription>怪叔叔看图 安装程序</FileDescription>
+    <Company>怪叔叔</Company>
     <RootNamespace>WBInstaller</RootNamespace>
     <ApplicationIcon>..\WBImageViewer\Assets\app.ico</ApplicationIcon>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
@@ -23,9 +26,9 @@
 
   <ItemGroup>
     <!-- The packaging batch publishes the viewer here before building the installer. -->
-    <EmbeddedResource Include="..\..\artifacts\setup-stage\GuaishushuViewer.exe"
-                      LogicalName="GuaishushuViewer.exe"
-                      Condition="Exists('..\..\artifacts\setup-stage\GuaishushuViewer.exe')" />
+    <EmbeddedResource Include="..\..\artifacts\setup-stage\怪叔叔看图.exe"
+                      LogicalName="ViewerExe.bin"
+                      Condition="Exists('..\..\artifacts\setup-stage\怪叔叔看图.exe')" />
   </ItemGroup>
 
 </Project>

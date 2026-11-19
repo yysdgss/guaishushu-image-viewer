@@ -7,7 +7,7 @@ namespace WBImageViewer.Services;
 
 internal static class FileAssociationService
 {
-    private const string ProgId = "GuaishushuViewer.Image";
+    private const string ProgId = "怪叔叔看图.Image";
 
     private static readonly string[] Extensions = SupportedFormats.All;
 
@@ -30,7 +30,7 @@ internal static class FileAssociationService
     /// </summary>
     private static void Register(AppSettings settings)
     {
-        var exe = Environment.ProcessPath ?? Path.Combine(AppContext.BaseDirectory, "GuaishushuViewer.exe");
+        var exe = Environment.ProcessPath ?? Path.Combine(AppContext.BaseDirectory, AppInfo.Name + ".exe");
 
         using (var progId = Registry.CurrentUser.CreateSubKey($@"Software\Classes\{ProgId}"))
         {
@@ -119,7 +119,7 @@ internal static class FileAssociationService
     {
         try
         {
-            var sample = Path.Combine(Path.GetTempPath(), "guaishushu-viewer-sample.png");
+            var sample = Path.Combine(Path.GetTempPath(), "怪叔叔看图-示例.png");
             File.WriteAllBytes(sample, Convert.FromBase64String(SamplePng));
             Process.Start(new ProcessStartInfo(sample) { Verb = "openas", UseShellExecute = true });
             return;

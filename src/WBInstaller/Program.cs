@@ -25,16 +25,16 @@ internal static class Program
 /// </summary>
 internal sealed class InstallWizard : Form
 {
-    private const string ExeName = "GuaishushuViewer.exe";
-    private const string ProgId = "GuaishushuViewer.Image";
-    private const string ResourceName = ExeName;
+    private const string ExeName = "怪叔叔看图.exe";
+    private const string ProgId = "怪叔叔看图.Image";
+    private const string ResourceName = "ViewerExe.bin";
     private static readonly string[] Extensions = SupportedFormats.All;
 
     private static string Version => Assembly.GetExecutingAssembly()
         .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion.Split('+')[0] ?? "";
 
     private readonly string _defaultDestination = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "GuaishushuViewer");
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "怪叔叔看图");
 
     // Root table gives every band an explicit row, so no docked control can ever
     // overlay another regardless of the order Controls.Add is called.
@@ -675,7 +675,7 @@ internal sealed class InstallWizard : Form
         if (!Stage(progress, 96, "写入卸载信息", () =>
             {
                 using var uninstall = Registry.CurrentUser.CreateSubKey(
-                    @"Software\Microsoft\Windows\CurrentVersion\Uninstall\GuaishushuViewer");
+                    @"Software\Microsoft\Windows\CurrentVersion\Uninstall\怪叔叔看图");
                 uninstall.SetValue("DisplayName", "怪叔叔看图");
                 uninstall.SetValue("DisplayVersion", Version);
                 uninstall.SetValue("Publisher", "怪叔叔");

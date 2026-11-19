@@ -1,6 +1,9 @@
 @echo off
 setlocal
-rem Fixed script: the version is read from the source project on every run.
+chcp 65001 >nul
+rem Fixed script: version comes from the source project. The output exe name is
+rem discovered from the publish directory, so this .bat stays pure ASCII and can
+rem never produce mojibake even though the product name itself is Chinese.
 set "ROOT=%~dp0"
 set "PROJ=%ROOT%src\WBImageViewer\WBImageViewer.csproj"
 set "BUILD=%ROOT%artifacts"
@@ -9,18 +12,18 @@ set "OUT=%BUILD%\single"
 set "VERSION="
 for /f "tokens=3 delims=<>" %%V in ('findstr /i /c:"<Version>" "%PROJ%"') do set "VERSION=%%V"
 if not defined VERSION (
-  echo [错误] 无法从 WBImageViewer.csproj 读取版本号。
+  echo [ERROR] Cannot read Version from WBImageViewer.csproj
   goto end
 )
 
 echo ============================================
-echo  怪叔叔看图 - 生成单文件运行包
+echo  Guaishushu Image Viewer - single-file build
 echo ============================================
 echo.
 
 where dotnet >nul 2>nul
 if errorlevel 1 (
-  echo [错误] 未找到 dotnet，请先安装 .NET 10 Desktop SDK/Runtime。
+  echo [ERROR] dotnet not found. Install .NET 10 Desktop SDK/Runtime first.
   goto end
 )
 
@@ -31,17 +34,23 @@ mkdir "%OUT%" >nul
 
 dotnet publish "%PROJ%" -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -p:DebugType=None -o "%STAGE%"
 if errorlevel 1 (
-  echo [错误] 发布失败。
-  goto cleanup
-)
-if not exist "%STAGE%\GuaishushuViewer.exe" (
-  echo [错误] 发布目录中未找到 GuaishushuViewer.exe。
+  echo [ERROR] Publish failed.
   goto cleanup
 )
 
-copy /Y "%STAGE%\GuaishushuViewer.exe" "%OUT%\GuaishushuViewer-v%VERSION%.exe" >nul
-echo [OK] 单文件运行包：%OUT%\GuaishushuViewer-v%VERSION%.exe
-echo [说明] 输出目录仅保留这一个带版本号的 exe。
+rem Discover the published exe name (it is the Chinese product name) without
+rem embedding any non-ASCII byte in this script.
+set "BUILT_EXE="
+for %%F in ("%STAGE%\*.exe") do set "BUILT_EXE=%%~nxF"
+if not defined BUILT_EXE (
+  echo [ERROR] No exe found in publish output.
+  goto cleanup
+)
+for %%F in ("%BUILT_EXE%") do set "BASE_NAME=%%~nF"
+
+copy /Y "%STAGE%\%BUILT_EXE%" "%OUT%\%BASE_NAME%-v%VERSION%.exe" >nul
+echo [OK] Single-file package: %OUT%\%BASE_NAME%-v%VERSION%.exe
+echo [NOTE] Exactly one versioned exe is produced in this folder.
 echo.
 
 :cleanup

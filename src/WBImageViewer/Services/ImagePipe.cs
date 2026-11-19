@@ -10,7 +10,7 @@ namespace WBImageViewer.Services;
 /// </summary>
 internal static class ImagePipe
 {
-    private const string PipeName = "guaishushu-viewer-v1";
+    private const string PipeName = "怪叔叔看图-单实例-v1";
 
     public static bool TrySend(IReadOnlyList<string> files)
     {

@@ -1,6 +1,9 @@
 @echo off
 setlocal
-rem Fixed script: the version is read from the source project on every run.
+chcp 65001 >nul
+rem Fixed script: version comes from the source project. Both exe names are
+rem discovered from publish directories, keeping this .bat pure ASCII while the
+rem actual product and installer exe names are Chinese.
 set "ROOT=%~dp0"
 set "PROJ=%ROOT%src\WBImageViewer\WBImageViewer.csproj"
 set "SETUP_PROJ=%ROOT%src\WBInstaller\WBInstaller.csproj"
@@ -11,19 +14,18 @@ set "OUT=%BUILD%\setup"
 set "VERSION="
 for /f "tokens=3 delims=<>" %%V in ('findstr /i /c:"<Version>" "%PROJ%"') do set "VERSION=%%V"
 if not defined VERSION (
-  echo [错误] 无法从 WBImageViewer.csproj 读取版本号。
+  echo [ERROR] Cannot read Version from WBImageViewer.csproj
   goto end
 )
-set "FINAL_EXE=%OUT%\GuaishushuViewer-v%VERSION%-Setup.exe"
 
 echo ============================================
-echo  怪叔叔看图 - 生成 Windows 安装程序
+echo  Guaishushu Image Viewer - Windows installer
 echo ============================================
 echo.
 
 where dotnet >nul 2>nul
 if errorlevel 1 (
-  echo [错误] 未找到 dotnet，请先安装 .NET 10 Desktop SDK/Runtime。
+  echo [ERROR] dotnet not found. Install .NET 10 Desktop SDK/Runtime first.
   goto end
 )
 
@@ -34,31 +36,37 @@ mkdir "%STAGE%" >nul
 mkdir "%INSTALLER_STAGE%" >nul
 mkdir "%OUT%" >nul
 
-echo [1/2] 发布主程序到安装资源暂存区...
+echo [1/2] Publishing viewer into installer staging...
 dotnet publish "%PROJ%" -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -p:DebugType=None -o "%STAGE%"
 if errorlevel 1 (
-  echo [错误] 主程序发布失败。
+  echo [ERROR] Viewer publish failed.
   goto cleanup
 )
-if not exist "%STAGE%\GuaishushuViewer.exe" (
-  echo [错误] 安装资源暂存区缺少 GuaishushuViewer.exe。
+set "BUILT_EXE="
+for %%F in ("%STAGE%\*.exe") do set "BUILT_EXE=%%~nxF"
+if not defined BUILT_EXE (
+  echo [ERROR] No viewer exe found in staging.
   goto cleanup
 )
+for %%F in ("%BUILT_EXE%") do set "BASE_NAME=%%~nF"
+set "FINAL_EXE=%OUT%\%BASE_NAME%-v%VERSION%-Setup.exe"
 
-echo [2/2] 生成常规 Windows 安装程序...
+echo [2/2] Building Windows installer...
 dotnet publish "%SETUP_PROJ%" -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -p:DebugType=None -p:Version=%VERSION% -o "%INSTALLER_STAGE%"
 if errorlevel 1 (
-  echo [错误] 安装程序发布失败。
+  echo [ERROR] Installer publish failed.
   goto cleanup
 )
-if not exist "%INSTALLER_STAGE%\GuaishushuViewerSetup.exe" (
-  echo [错误] 未找到生成的安装程序。
+set "SETUP_EXE="
+for %%F in ("%INSTALLER_STAGE%\*.exe") do set "SETUP_EXE=%%~nxF"
+if not defined SETUP_EXE (
+  echo [ERROR] No installer exe found.
   goto cleanup
 )
 
-copy /Y "%INSTALLER_STAGE%\GuaishushuViewerSetup.exe" "%FINAL_EXE%" >nul
-echo [OK] 安装包：%FINAL_EXE%
-echo [说明] 输出目录仅保留这一个带版本号的 exe 安装程序。
+copy /Y "%INSTALLER_STAGE%\%SETUP_EXE%" "%FINAL_EXE%" >nul
+echo [OK] Installer package: %FINAL_EXE%
+echo [NOTE] Exactly one versioned installer exe is produced in this folder.
 echo.
 
 :cleanup

@@ -18,8 +18,9 @@ namespace WBImageViewer.Services;
 /// </summary>
 internal static class DefaultAssociationService
 {
-    public const string ProgId = "GuaishushuViewer.Image";
-    private const string VerbName = "GuaishushuViewer.Open";
+    public const string ProgId = "怪叔叔看图.Image";
+    private const string VerbName = "怪叔叔看图.Open";
+    private const string LegacyVerbName = "GuaishushuViewer.Open";
     private const string Experience =
         "user choice set via windows user experience {d18b6dd5-6124-4341-9318-804003bafa0b}";
 
@@ -58,6 +59,13 @@ internal static class DefaultAssociationService
                 if (!SetUserChoice(extension, ProgId))
                     errors.Add($"{extension}：默认程序哈希写入失败");
 
+                try
+                {
+                    using var shell = Registry.CurrentUser.OpenSubKey(
+                        $@"Software\Classes\SystemFileAssociations\{extension}\shell", true);
+                    shell?.DeleteSubKeyTree(LegacyVerbName, false);
+                }
+                catch { /* old verb cleanup is best effort */ }
                 RegisterContextMenu(extension, executablePath);
             }
             catch (Exception ex)
