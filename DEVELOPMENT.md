@@ -3545,7 +3545,7 @@ RedrawAnnotations();
 ### R111 软件名称全中文
 
 - **需求**：任务管理器、封装产物等仍显示拼音 `GuaishushuViewer`，需全部改为中文且不产生批处理乱码。
-- **实现**：主程序与安装器 `.csproj` 的 `AssemblyName/AssemblyTitle/FileDescription` 改为中文；程序集名、exe 名、安装目录、卸载项、快捷方式、文件关联 ProgID/Verb、单实例管道、注册表键全部中文；卸载时同时清理旧拼音键与目录。两个封装 bat 改为纯 ASCII 文本，加入 `chcp 65001`，版本仍从 `<Version>` 读取，exe 名通过 `for` 枚举发布目录获得，不在 bat 中写入任何非 ASCII 字节（R111）。
+- **实现**：主程序与安装器 `.csproj` 的 `AssemblyName/AssemblyTitle/FileDescription` 改为中文；程序集名、exe 名、安装目录、卸载项、快捷方式、文件关联 ProgID/Verb、单实例管道、注册表键全部中文；卸载时同时清理旧拼音键与目录。两个封装 bat 改为纯 ASCII 文本，加入 `chcp 65001`，版本仍从 `<Version>` 读取，exe 名通过 `for` 枚举发布目录获得，不在 bat 中写入任何非 ASCII 字节。GitHub Release 资产上传接口拒绝中文文件名，线上资产改用 `Viewer-v<版本>.exe` 并以中文 label 显示名称，本地产物保持纯中文名（R111）。
 
 ---
 
