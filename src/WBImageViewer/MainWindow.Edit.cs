@@ -49,38 +49,59 @@ public partial class MainWindow
 
     private void RestoreCursor() => SetToolCursor();
 
+    private static string ToolName(AnnotationTool tool) => tool switch
+    {
+        AnnotationTool.Line => "直线",
+        AnnotationTool.Wave => "波浪线",
+        AnnotationTool.DoubleLine => "双线",
+        AnnotationTool.Freehand => "自由画",
+        AnnotationTool.Circle => "圈注",
+        AnnotationTool.Fill => "油漆桶填充",
+        AnnotationTool.EraserFree => "自由擦除",
+        AnnotationTool.EraserClick => "点击擦除",
+        AnnotationTool.Move => "移动元素",
+        _ => string.Empty
+    };
+
+    private string SelectedElementName() => _selectedKind switch
+    {
+        ElementKind.Stroke when _selectedIndex >= 0 && _selectedIndex < _annotations.Count
+            => ToolName(_annotations[_selectedIndex].Tool),
+        ElementKind.Fill => "填充",
+        ElementKind.Text => "文字卡片",
+        _ => string.Empty
+    };
+
     private void ShowToolBadge()
     {
+        var isSelection = _selectedKind != ElementKind.None;
         var name = _regionAction != RegionAction.None
             ? (_regionAction == RegionAction.Ocr ? "框选识别" : "框选翻译")
-            : _annotationTool switch
-        {
-            AnnotationTool.Line => "直线",
-            AnnotationTool.Wave => "波浪线",
-            AnnotationTool.DoubleLine => "双线",
-            AnnotationTool.Freehand => "自由画",
-            AnnotationTool.Circle => "圈注",
-            AnnotationTool.Fill => "油漆桶填充",
-            AnnotationTool.EraserFree => "自由擦除",
-            AnnotationTool.EraserClick => "点击擦除",
-            AnnotationTool.Move => "移动元素",
-            _ => string.Empty
-        };
-        var show = !string.IsNullOrEmpty(name) || _selectedKind != ElementKind.None;
+            : isSelection ? SelectedElementName() : ToolName(_annotationTool);
+        var show = !string.IsNullOrEmpty(name);
         if (!show)
         {
             ToolBadge.Visibility = Visibility.Collapsed;
             ToolBadgeMenu.Visibility = Visibility.Collapsed;
+            _badgeMenuKind = BadgeMenuKind.None;
             return;
         }
 
-        var diameter = _annotationTool is AnnotationTool.EraserFree or AnnotationTool.EraserClick
-            ? _eraserSize : _annotationSize;
-        var style = _annotationLineStyle == InkStrokeStyle.Standard ? "标准" : "手绘";
-        ToolBadgeName.Content = _selectedKind != ElementKind.None ? $"已选中 · {name}" : $"标注：{name} · {style}";
+        var selectedStroke = isSelection && _selectedKind == ElementKind.Stroke &&
+                             _selectedIndex >= 0 && _selectedIndex < _annotations.Count
+            ? _annotations[_selectedIndex] : null;
+        var diameter = selectedStroke != null ? selectedStroke.Thickness * ViewScale
+            : _annotationTool is AnnotationTool.EraserFree or AnnotationTool.EraserClick
+                ? _eraserSize : _annotationSize;
+        var style = (selectedStroke?.Style ?? _annotationLineStyle) == InkStrokeStyle.Standard ? "标准" : "手绘";
+        var opacity = selectedStroke?.Opacity ?? _annotationOpacity;
+        var highlighter = selectedStroke?.Highlighter ?? _annotationHighlighter;
+        var color = selectedStroke?.Color ?? _annotationColor;
+
+        ToolBadgeName.Content = isSelection ? $"已选中 · {name}" : $"标注：{name} · {style}";
         ToolBadgeSize.Content = $"直径 {diameter:0}";
-        ToolBadgeOpacity.Content = _annotationHighlighter ? "高亮" : $"{_annotationOpacity:0%}";
-        ToolBadgeColorDot.Fill = new SolidColorBrush(_annotationColor);
+        ToolBadgeOpacity.Content = highlighter ? "高亮" : $"{opacity:0%}";
+        ToolBadgeColorDot.Fill = new SolidColorBrush(color);
         ToolBadge.Visibility = Visibility.Visible;
     }
 
@@ -276,7 +297,7 @@ public partial class MainWindow
 
     private bool TryBeginElementEdit(Point vp)
     {
-        var handleRadius = 9;
+        var handleRadius = 11;
         // First: if an element is selected, check its handles.
         if (_selectedKind == ElementKind.Stroke && _selectedIndex >= 0 && _selectedIndex < _annotations.Count)
         {
@@ -288,8 +309,9 @@ public partial class MainWindow
                 {
                     _editingElement = true;
                     _editingHandle = i;
-                    _editStartImage = vp;
+                    _editStartImage = ToImageSpace(vp);
                     _editOriginalPoints = stroke.Points.ToList();
+                    _editOriginalHandleValue = stroke.GetHandleValue(i);
                     var bounds = stroke.GetHandles();
                     _editOriginalTopLeft = bounds.Count > 0 ? bounds[0].Value : new Point(0, 0);
                     _editOriginalBottomRight = bounds.Count > 1 ? bounds[1].Value : new Point(1, 1);
@@ -371,9 +393,14 @@ public partial class MainWindow
             case ElementKind.Stroke when _selectedIndex >= 0 && _selectedIndex < _annotations.Count:
                 var stroke = _annotations[_selectedIndex];
                 if (_editingHandle >= 0)
-                    stroke.ApplyHandle(_editingHandle,
-                        new Point(_editOriginalPoints![_editingHandle].X + dx, _editOriginalPoints[_editingHandle].Y + dy),
+                {
+                    // Handle indices are logical, so use the snapshotted handle value
+                    // (not Points[handleIndex]) and keep the whole edit in image space.
+                    var target = new Point(_editOriginalHandleValue.X + dx,
+                                           _editOriginalHandleValue.Y + dy);
+                    stroke.ApplyHandle(_editingHandle, target,
                         _editOriginalTopLeft, _editOriginalBottomRight);
+                }
                 break;
             case ElementKind.Fill when _selectedIndex >= 0 && _selectedIndex < _fills.Count:
                 var fill = _fills[_selectedIndex];
@@ -838,42 +865,107 @@ public partial class MainWindow
 
     // ---------------- badge quick controls ----------------
 
+    // Each badge segment opens only its own popup. The contents also depend on whether
+    // an element is selected - e.g. circle/freehand have no "convert to" options.
     private const string BadgeTagLine = "line:";
     private const string BadgeTagStyle = "style:";
     private const string BadgeTagSize = "size:";
     private const string BadgeTagOpacity = "opacity:";
     private const string BadgeTagColor = "color:";
 
-    private void BuildToolBadgeMenu()
+    private void ShowBadgeMenu(BadgeMenuKind kind)
     {
-        AddBadgeRow("线型", new[]
+        if (_badgeMenuKind == kind && ToolBadgeMenu.Visibility == Visibility.Visible)
         {
-            ("直线", BadgeTagLine + AnnotationTool.Line), ("波浪", BadgeTagLine + AnnotationTool.Wave),
-            ("双线", BadgeTagLine + AnnotationTool.DoubleLine), ("自由画", BadgeTagLine + AnnotationTool.Freehand),
-            ("圈注", BadgeTagLine + AnnotationTool.Circle)
-        });
-        AddBadgeRow("笔触", new[]
+            CloseBadgeMenu();
+            return;
+        }
+        _badgeMenuKind = kind;
+        ToolBadgeMenuItems.Children.Clear();
+
+        var selectedStroke = _selectedKind == ElementKind.Stroke && _selectedIndex >= 0 &&
+                             _selectedIndex < _annotations.Count ? _annotations[_selectedIndex] : null;
+        switch (kind)
         {
-            ("标准平滑", BadgeTagStyle + InkStrokeStyle.Standard),
-            ("手绘质感", BadgeTagStyle + InkStrokeStyle.HandDrawn)
-        });
-        AddBadgeRow("线径", new[]
+            case BadgeMenuKind.LineType:
+                if (selectedStroke != null)
+                {
+                    if (AnnotationStroke.CanChangeTo(selectedStroke.Tool, AnnotationTool.Line))
+                        AddBadgeRow("切换元素类型", new[]
+                        {
+                            ("直线", BadgeTagLine + AnnotationTool.Line),
+                            ("波浪", BadgeTagLine + AnnotationTool.Wave),
+                            ("双线", BadgeTagLine + AnnotationTool.DoubleLine)
+                        });
+                    else
+                        AddBadgeInfo($"{SelectedElementName()} 不能转换为其他形状；可调整笔触、线径、透明度与颜色。");
+                }
+                else
+                {
+                    AddBadgeRow("绘制形状", new[]
+                    {
+                        ("直线", BadgeTagLine + AnnotationTool.Line), ("波浪", BadgeTagLine + AnnotationTool.Wave),
+                        ("双线", BadgeTagLine + AnnotationTool.DoubleLine), ("自由画", BadgeTagLine + AnnotationTool.Freehand),
+                        ("圈注", BadgeTagLine + AnnotationTool.Circle), ("填充", BadgeTagLine + AnnotationTool.Fill)
+                    });
+                    AddBadgeRow("笔触", new[]
+                    {
+                        ("标准平滑", BadgeTagStyle + InkStrokeStyle.Standard),
+                        ("手绘质感", BadgeTagStyle + InkStrokeStyle.HandDrawn)
+                    });
+                }
+                break;
+            case BadgeMenuKind.Style:
+                AddBadgeRow("笔触", new[]
+                {
+                    ("标准平滑", BadgeTagStyle + InkStrokeStyle.Standard),
+                    ("手绘质感", BadgeTagStyle + InkStrokeStyle.HandDrawn)
+                });
+                break;
+            case BadgeMenuKind.Size:
+                var eraser = _annotationTool is AnnotationTool.EraserFree or AnnotationTool.EraserClick;
+                AddBadgeRow(eraser ? "擦头直径" : "线径", new[]
+                {
+                    ("1 px", BadgeTagSize + "1"), ("2 px", BadgeTagSize + "2"), ("4 px", BadgeTagSize + "4"),
+                    ("7 px", BadgeTagSize + "7"), ("11 px", BadgeTagSize + "11"), ("18 px", BadgeTagSize + "18")
+                });
+                break;
+            case BadgeMenuKind.Opacity:
+                AddBadgeRow("透明度", new[]
+                {
+                    ("35%", BadgeTagOpacity + "0.35"), ("55%", BadgeTagOpacity + "0.55"),
+                    ("80%", BadgeTagOpacity + "0.8"), ("100%", BadgeTagOpacity + "1"),
+                    ("高亮", BadgeTagOpacity + "highlight")
+                });
+                break;
+            case BadgeMenuKind.Color:
+                AddBadgeRow("颜色", new[]
+                {
+                    ("红", BadgeTagColor + "240,72,72"), ("橙", BadgeTagColor + "244,140,52"),
+                    ("黄", BadgeTagColor + "236,200,56"), ("绿", BadgeTagColor + "80,206,108"),
+                    ("青", BadgeTagColor + "56,208,214"), ("蓝", BadgeTagColor + "64,150,246"),
+                    ("紫", BadgeTagColor + "168,110,226"), ("白", BadgeTagColor + "244,246,250"),
+                    ("调色板…", BadgeTagColor + "palette")
+                });
+                break;
+        }
+        ToolBadgeMenu.Visibility = Visibility.Visible;
+    }
+
+    private void CloseBadgeMenu()
+    {
+        ToolBadgeMenu.Visibility = Visibility.Collapsed;
+        _badgeMenuKind = BadgeMenuKind.None;
+    }
+
+    private void AddBadgeInfo(string message)
+    {
+        ToolBadgeMenuItems.Children.Add(new TextBlock
         {
-            ("1 px", BadgeTagSize + "1"), ("2 px", BadgeTagSize + "2"), ("4 px", BadgeTagSize + "4"),
-            ("7 px", BadgeTagSize + "7"), ("11 px", BadgeTagSize + "11")
-        });
-        AddBadgeRow("透明度", new[]
-        {
-            ("35%", BadgeTagOpacity + "0.35"), ("55%", BadgeTagOpacity + "0.55"),
-            ("80%", BadgeTagOpacity + "0.8"), ("100%", BadgeTagOpacity + "1"),
-            ("高亮", BadgeTagOpacity + "highlight")
-        });
-        AddBadgeRow("颜色", new[]
-        {
-            ("红", BadgeTagColor + "240,72,72"), ("橙", BadgeTagColor + "244,140,52"),
-            ("黄", BadgeTagColor + "236,200,56"), ("绿", BadgeTagColor + "80,206,108"),
-            ("蓝", BadgeTagColor + "64,150,246"), ("白", BadgeTagColor + "244,246,250"),
-            ("调色板…", BadgeTagColor + "palette")
+            Text = message,
+            Foreground = (System.Windows.Media.Brush)FindResource("ThemeMutedTextBrush"),
+            FontSize = 10, TextWrapping = TextWrapping.Wrap, MaxWidth = 300,
+            Margin = new Thickness(2, 4, 2, 6)
         });
     }
 
@@ -908,21 +1000,36 @@ public partial class MainWindow
         ToolBadgeMenuItems.Children.Add(panel);
     }
 
+    private void ApplyBadgeSize(double size)
+    {
+        if (_annotationTool is AnnotationTool.EraserFree or AnnotationTool.EraserClick)
+        {
+            _eraserSize = size;
+            return;
+        }
+        _annotationSize = size;
+        if (_selectedKind == ElementKind.Stroke && _selectedIndex >= 0 && _selectedIndex < _annotations.Count)
+        {
+            _annotations[_selectedIndex].Thickness = ScreenToImageThickness(size);
+            RedrawAnnotations();
+        }
+    }
+
     private void BadgeChoice_Click(object sender, RoutedEventArgs e)
     {
         var tag = (sender as System.Windows.Controls.Button)?.Tag as string ?? string.Empty;
         if (tag.StartsWith(BadgeTagLine, StringComparison.Ordinal) &&
             Enum.TryParse<AnnotationTool>(tag[BadgeTagLine.Length..], out var tool))
-            SetAnnotationTool(tool);
+        {
+            if (_selectedKind == ElementKind.Stroke) ChangeSelectedLineType(tool);
+            else SetAnnotationTool(tool);
+        }
         else if (tag.StartsWith(BadgeTagStyle, StringComparison.Ordinal) &&
                  Enum.TryParse<InkStrokeStyle>(tag[BadgeTagStyle.Length..], out var style))
-            _annotationLineStyle = style;
+            SetLineStyle(style);
         else if (tag.StartsWith(BadgeTagSize, StringComparison.Ordinal) &&
                  double.TryParse(tag[BadgeTagSize.Length..], out var size))
-        {
-            if (_annotationTool is AnnotationTool.EraserFree or AnnotationTool.EraserClick) _eraserSize = size;
-            else _annotationSize = size;
-        }
+            ApplyBadgeSize(size);
         else if (tag.StartsWith(BadgeTagOpacity, StringComparison.Ordinal))
         {
             var value = tag[BadgeTagOpacity.Length..];
@@ -944,21 +1051,16 @@ public partial class MainWindow
                 }
             }
         }
+        CloseBadgeMenu();
         ShowToolBadge();
     }
 
-    private void ToggleBadgeMenu()
-    {
-        ToolBadgeMenu.Visibility = ToolBadgeMenu.Visibility == Visibility.Visible
-            ? Visibility.Collapsed : Visibility.Visible;
-    }
-
-    private void ToolBadgeName_Click(object sender, RoutedEventArgs e) => ToggleBadgeMenu();
-    private void ToolBadgeSize_Click(object sender, RoutedEventArgs e) => ToggleBadgeMenu();
-    private void ToolBadgeOpacity_Click(object sender, RoutedEventArgs e) => ToggleBadgeMenu();
+    private void ToolBadgeName_Click(object sender, RoutedEventArgs e) => ShowBadgeMenu(BadgeMenuKind.LineType);
+    private void ToolBadgeSize_Click(object sender, RoutedEventArgs e) => ShowBadgeMenu(BadgeMenuKind.Size);
+    private void ToolBadgeOpacity_Click(object sender, RoutedEventArgs e) => ShowBadgeMenu(BadgeMenuKind.Opacity);
     private void ToolBadgeColorDot_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
-        ToggleBadgeMenu();
+        ShowBadgeMenu(BadgeMenuKind.Color);
         e.Handled = true;
     }
 

@@ -83,6 +83,7 @@ public partial class MainWindow : Window
     private Point _editStartImage;
     private Point _editOriginalTopLeft;
     private Point _editOriginalBottomRight;
+    private Point _editOriginalHandleValue;
     private List<Point>? _editOriginalPoints;
 
     // Region selection for screenshot translate / OCR.
@@ -108,10 +109,25 @@ public partial class MainWindow : Window
     private enum CompassTrigger { None, Pointer, Line }
     private CompassTrigger[] _compassTrigger = { CompassTrigger.None, CompassTrigger.None, CompassTrigger.None, CompassTrigger.None };
     private int _compassPreviewRing = -1;
+    private double _compassLineAngle = double.NaN;
     private Line? _compassGuideHalo;
     private Line? _compassGuideFlow;
     private Border? _compassTooltip;
     private TextBlock? _compassTooltipText;
+
+    // Smooth paging: keep decoded bitmaps around so back/forward is instant.
+    private static readonly Dictionary<string, BitmapSource> ImageDecodeCache = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly List<string> ImageCacheOrder = new();
+    private static readonly object ImageCacheLock = new();
+    private const int ImageCacheLimit = 12;
+
+    // Badge popup is rebuilt for the specific control that was clicked.
+    private enum BadgeMenuKind { None, LineType, Style, Size, Opacity, Color }
+    private BadgeMenuKind _badgeMenuKind = BadgeMenuKind.None;
+    private DispatcherTimer? _filmstripLeaveTimer;
+    private bool _filmstripExpanded;
+    private bool _prevNavEnabled = true;
+    private bool _nextNavEnabled = true;
 
     // Bottom filmstrip / playlist. A dropped batch takes precedence over the directory list.
     private sealed class FilmItem
@@ -142,12 +158,15 @@ public partial class MainWindow : Window
 
         IslandHitArea.MouseEnter += (_, _) => AnimateIsland(true);
         IslandHitArea.MouseLeave += (_, _) => AnimateIsland(false);
-        ToolBadge.MouseEnter += (_, _) => ToolBadge.BorderBrush = new SolidColorBrush(Color.FromArgb(170, 108, 182, 255));
-        ToolBadge.MouseLeave += (_, _) => ToolBadge.BorderBrush = new SolidColorBrush(Color.FromArgb(102, 255, 255, 255));
-        BuildToolBadgeMenu();
         CloseHost.MouseEnter += (_, _) => AnimateCloseButton(0);
         CloseHost.MouseLeave += (_, _) => AnimateCloseButton(-32);
         ImageViewport.SizeChanged += (_, _) => { if (!_fittingWindow) ApplyImagePosition(); };
+        _filmstripLeaveTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(260) };
+        _filmstripLeaveTimer.Tick += (_, _) =>
+        {
+            _filmstripLeaveTimer.Stop();
+            if (!FilmstripHost.IsMouseOver && !FilmstripBarHit.IsMouseOver) AnimateFilmstrip(false);
+        };
         UpdatePinState();
         ApplyVisualSettings(App.Settings);
         SourceInitialized += OnSourceInitialized;
@@ -210,6 +229,7 @@ public partial class MainWindow : Window
         if (App.Settings.Adjustments != null && _sourcePixels == null)
             _adjustments = App.Settings.Adjustments.Clone();
         ApplyCornerRadius(settings.CornerRadius);
+        UpdateNavZoneState();
     }
 
     private IntPtr WndProc(IntPtr hwnd, int message, IntPtr wParam, IntPtr lParam, ref bool handled)
@@ -255,8 +275,7 @@ public partial class MainWindow : Window
         Title = $"{AppInfo.Name} - {title}";
         _currentImagePath = string.Empty;
         _currentProjectName = title;
-        ApplyImagePosition();
-        if (IsLoaded) FitImageToWindow();
+        if (IsLoaded) FitImageToWindow(); else ApplyImagePosition();
         _playlist.Clear();
         _playlistFromDrop = false;
         RefreshFilmstrip();
@@ -270,11 +289,8 @@ public partial class MainWindow : Window
         {
             // WIC decodes ordinary bitmap formats; document/vector formats fall back
             // to the Windows shell thumbnail provider (see ShellPreviewService).
-            var decoded = DecodeImage(path)
+            var source = DecodeImage(path)
                 ?? throw new InvalidOperationException("系统无法解码该格式，且 Windows 未提供可用缩略图。");
-            var source = decoded.Format == PixelFormats.Bgra32
-                ? decoded
-                : new FormatConvertedBitmap(decoded, PixelFormats.Bgra32, null, 0);
 
             _pixelWidth = source.PixelWidth;
             _pixelHeight = source.PixelHeight;
@@ -298,9 +314,7 @@ public partial class MainWindow : Window
             ImageView.Source = _display;
             Hint.Visibility = Visibility.Collapsed;
             Title = $"{AppInfo.Name} - {System.IO.Path.GetFileName(path)}";
-            ApplyImagePosition();
-
-            if (IsLoaded) FitImageToWindow();
+            if (IsLoaded) FitImageToWindow(); else ApplyImagePosition();
             SyncPlaylistForCurrentImage();
         }
         catch (Exception ex)
@@ -310,9 +324,16 @@ public partial class MainWindow : Window
         }
     }
 
-    /// <summary>Try native WIC decoding first, then the system thumbnail provider.</summary>
+    /// <summary>
+    /// Decode once into a frozen Bgra32 bitmap and keep a small LRU so back/forward paging
+    /// never pays WIC decode + format conversion again.
+    /// </summary>
     private static BitmapSource? DecodeImage(string path)
     {
+        lock (ImageCacheLock)
+            if (ImageDecodeCache.TryGetValue(path, out var cached)) return cached;
+
+        BitmapSource? source = null;
         try
         {
             var bitmap = new BitmapImage();
@@ -321,12 +342,31 @@ public partial class MainWindow : Window
             bitmap.CreateOptions = BitmapCreateOptions.IgnoreImageCache;
             bitmap.UriSource = new Uri(path, UriKind.Absolute);
             bitmap.EndInit();
-            return bitmap;
+            source = bitmap;
         }
         catch
         {
-            return ShellPreviewService.TryLoad(path);
+            source = ShellPreviewService.TryLoad(path);
         }
+        if (source == null) return null;
+        if (source.Format != PixelFormats.Bgra32)
+            source = new FormatConvertedBitmap(source, PixelFormats.Bgra32, null, 0);
+        source.Freeze();
+
+        lock (ImageCacheLock)
+        {
+            ImageCacheOrder.Remove(path);
+            ImageDecodeCache[path] = source;
+            ImageCacheOrder.Add(path);
+            while (ImageCacheOrder.Count > ImageCacheLimit)
+            {
+                var old = ImageCacheOrder[0];
+                ImageCacheOrder.RemoveAt(0);
+                if (!ReferenceEquals(ImageDecodeCache.TryGetValue(old, out var cached) ? cached : null, source))
+                    ImageDecodeCache.Remove(old);
+            }
+        }
+        return source;
     }
 
     private void ApplyAdjustments()
@@ -424,13 +464,25 @@ public partial class MainWindow : Window
         return false;
     }
 
+    private bool IsFromBadge(RoutedEventArgs e)
+    {
+        var element = e.OriginalSource as DependencyObject;
+        while (element != null)
+        {
+            if (ReferenceEquals(element, ToolBadge) || ReferenceEquals(element, ToolBadgeMenu)) return true;
+            element = VisualTreeHelper.GetParent(element);
+        }
+        return false;
+    }
+
     private bool IsFromFilmstripOrNavZone(RoutedEventArgs e)
     {
         var element = e.OriginalSource as DependencyObject;
         while (element != null)
         {
             if (ReferenceEquals(element, PrevZone) || ReferenceEquals(element, NextZone) ||
-                ReferenceEquals(element, FilmstripHost) || ReferenceEquals(element, FilmstripBar) ||
+                ReferenceEquals(element, FilmstripHost) || ReferenceEquals(element, FilmstripBarHit) ||
+                ReferenceEquals(element, FilmstripBar) ||
                 ReferenceEquals(element, ToolBadgeMenu) || ReferenceEquals(element, ToolBadge))
                 return true;
             element = VisualTreeHelper.GetParent(element);
@@ -710,6 +762,11 @@ public partial class MainWindow : Window
     protected override void OnPreviewMouseDown(MouseButtonEventArgs e)
     {
         base.OnPreviewMouseDown(e);
+        if (_badgeMenuKind != BadgeMenuKind.None && !IsFromBadge(e))
+        {
+            ToolBadgeMenu.Visibility = Visibility.Collapsed;
+            _badgeMenuKind = BadgeMenuKind.None;
+        }
         if (IsFromButton(e) || IsFromFilmstripOrNavZone(e)) return;
         if (HandleCompassDown(e)) return;
         if (HandleAnnotationDown(e)) return;

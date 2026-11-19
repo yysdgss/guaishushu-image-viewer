@@ -37,6 +37,12 @@ public sealed class AppSettings
 {
     public bool SingleWindow { get; set; } = true;
 
+    /// <summary>
+    /// When true, next/previous wraps around at the end of the playlist. When false,
+    /// the edge buttons are disabled at the first/last picture and flash on click.
+    /// </summary>
+    public bool LoopPlaylist { get; set; } = true;
+
     /// <summary>Panel background as #RRGGBB.</summary>
     public string BackgroundColor { get; set; } = "#101216";
 

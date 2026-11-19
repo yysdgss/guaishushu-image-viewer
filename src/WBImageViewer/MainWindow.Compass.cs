@@ -331,6 +331,7 @@ public partial class MainWindow
         for (var i = 0; i < _compassSelection.Length; i++) _compassSelection[i] = -1;
         _compassTrigger = new CompassTrigger[CompassRingInner.Length];
         _compassPreviewRing = -1;
+        _compassLineAngle = double.NaN;
         _compassOpen = true;
         _draftPointer = imagePoint;
 
@@ -544,6 +545,7 @@ public partial class MainWindow
         }
         _compassPreviewRing = -1;
         _compassActiveRing = -1;
+        _compassLineAngle = double.NaN;
     }
 
     private void InvalidateDeeperCompassRings(int ring)
@@ -589,12 +591,13 @@ public partial class MainWindow
         var pointerRing = -1;
         for (var r = 0; r < CompassRingInner.Length; r++)
         {
-            if (distance >= CompassRingInner[r] - 3 && distance <= CompassRingOuter[r] + 6) { pointerRing = r; break; }
+            if (distance >= CompassRingInner[r] - 3 && distance <= CompassRingOuter[r] + 11) { pointerRing = r; break; }
         }
 
         if (pointerRing >= 0)
         {
             // Real pointer activation. Clear any line-driven preview and act normally.
+            _compassLineAngle = double.NaN;
             _compassPreviewRing = -1;
             for (var r = 0; r < _compassTrigger.Length; r++)
                 if (_compassTrigger[r] == CompassTrigger.Line) _compassTrigger[r] = CompassTrigger.None;
@@ -621,10 +624,12 @@ public partial class MainWindow
         }
         else
         {
-            // Pointer has left the menu: the decorative line may still trigger the
-            // outermost visible ring. A group hit this way becomes preview-only, and
-            // its children are shown but can never be triggered by the line.
-            var ring = DeepestVisibleCompassRing();
+            // Pointer has left the menu: the guide line may still trigger the deepest
+            // visible ring. Angular hysteresis keeps a wobbly hand from flipping sectors
+            // back and forth (which used to look like stutter / lost contact).
+            var ring = _compassActiveRing;
+            if (ring < 0 || ring >= CompassRingInner.Length || CompassChildrenAt(ring).Count == 0)
+                ring = DeepestVisibleCompassRing();
             var nodes = CompassChildrenAt(ring);
             if (nodes.Count > 0)
             {
@@ -634,14 +639,22 @@ public partial class MainWindow
                                 _compassOrigin.Y + dy * (midRadius / distance))
                     : pointer;
                 var angle = SectorAngle(sample);
-                var idx = (int)(angle / (360.0 / nodes.Count)) % nodes.Count;
-                if (_compassSelection[ring] != idx)
+                var span = 360.0 / nodes.Count;
+                var idx = _compassSelection[ring];
+                if (idx < 0 || idx >= nodes.Count || double.IsNaN(_compassLineAngle) ||
+                    Math.Abs(AngleDifference(angle, _compassLineAngle)) > Math.Max(2.2, span * 0.12))
                 {
-                    _compassSelection[ring] = idx;
-                    InvalidateDeeperCompassRings(ring);
-                    changed = true;
+                    var candidate = (int)(angle / span) % nodes.Count;
+                    if (idx != candidate)
+                    {
+                        _compassSelection[ring] = candidate;
+                        InvalidateDeeperCompassRings(ring);
+                        idx = candidate;
+                        changed = true;
+                    }
+                    _compassLineAngle = angle;
                 }
-                else changed |= _compassTrigger[ring] != CompassTrigger.Line;
+                changed |= _compassTrigger[ring] != CompassTrigger.Line;
                 _compassTrigger[ring] = CompassTrigger.Line;
                 _compassActiveRing = ring;
 
@@ -654,6 +667,14 @@ public partial class MainWindow
         if (changed) RebuildCompass();
         UpdateCompassGuide();
         UpdateCompassTooltip();
+    }
+
+    private static double AngleDifference(double a, double b)
+    {
+        var diff = (a - b) % 360;
+        if (diff > 180) diff -= 360;
+        if (diff < -180) diff += 360;
+        return diff;
     }
 
     private double SectorAngle(Point point)
@@ -706,6 +727,7 @@ public partial class MainWindow
         for (var i = 0; i < _compassSelection.Length; i++) _compassSelection[i] = -1;
         for (var i = 0; i < _compassTrigger.Length; i++) _compassTrigger[i] = CompassTrigger.None;
         _compassPreviewRing = -1;
+        _compassLineAngle = double.NaN;
         _compassGuideHalo = null;
         _compassGuideFlow = null;
         _compassTooltip = null;

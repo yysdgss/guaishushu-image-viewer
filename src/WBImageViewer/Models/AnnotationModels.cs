@@ -83,11 +83,11 @@ internal sealed class AnnotationStroke
 
         if (selected)
         {
-            // Soft cyan under-glow + dashed outline make the selected object unmistakable.
+            // A restrained under-glow is enough to identify the active stroke - no
+            // bounding rectangle, which used to obscure the drawing underneath.
             foreach (var line in lines)
                 host.Children.Add(CreateStandardStroke(line,
-                    Color.FromArgb(95, 108, 182, 255), width + 7));
-            AddSelectionBounds(host, lines.SelectMany(l => l).ToList());
+                    Color.FromArgb(62, 108, 182, 255), width + 3));
         }
 
         foreach (var line in lines)
@@ -140,8 +140,9 @@ internal sealed class AnnotationStroke
         if (Points.Count < 2) return new List<(int, Point)>();
         if (Tool is AnnotationTool.Line or AnnotationTool.Wave or AnnotationTool.DoubleLine)
             return new List<(int, Point)> { (0, Points[0]), (Points.Count - 1, Points[^1]) };
-        if (Tool == AnnotationTool.Circle)
+        if (Tool is AnnotationTool.Circle or AnnotationTool.Freehand)
         {
+            // Two diagonal handles scale the element's width and height independently.
             var l = Points.Min(p => p.X);
             var r = Points.Max(p => p.X);
             var t = Points.Min(p => p.Y);
@@ -149,6 +150,14 @@ internal sealed class AnnotationStroke
             return new List<(int, Point)> { (0, new Point(l, t)), (1, new Point(r, b)) };
         }
         return new List<(int, Point)>();
+    }
+
+    /// <summary>Handle indices are logical (0 / 1), not point indices. Snapshot the real
+    /// value when a drag starts so the editor can apply a delta without mixing spaces.</summary>
+    public Point GetHandleValue(int handleIndex)
+    {
+        var handles = GetHandles();
+        return handleIndex >= 0 && handleIndex < handles.Count ? handles[handleIndex].Value : new Point(0, 0);
     }
 
     private List<Point> GetHandlePoints(Func<Point, Point> toViewport) =>
@@ -162,7 +171,7 @@ internal sealed class AnnotationStroke
             Points[idx] = new Point(Math.Clamp(target.X, -0.5, 1.5), Math.Clamp(target.Y, -0.5, 1.5));
             return true;
         }
-        if (Tool == AnnotationTool.Circle && Points.Count > 0)
+        if (Tool is (AnnotationTool.Circle or AnnotationTool.Freehand) && Points.Count > 0)
         {
             var l = originalBoundsTopLeft.X;
             var t = originalBoundsTopLeft.Y;
@@ -414,28 +423,6 @@ internal sealed class AnnotationStroke
             IsHitTestVisible = false,
             SnapsToDevicePixels = false
         };
-    }
-
-    private static void AddSelectionBounds(Canvas host, IReadOnlyList<Point> points)
-    {
-        if (points.Count == 0) return;
-        var x0 = points.Min(p => p.X) - 6;
-        var x1 = points.Max(p => p.X) + 6;
-        var y0 = points.Min(p => p.Y) - 6;
-        var y1 = points.Max(p => p.Y) + 6;
-        var rect = new Rectangle
-        {
-            Width = x1 - x0,
-            Height = y1 - y0,
-            Stroke = new SolidColorBrush(Color.FromArgb(220, 108, 182, 255)),
-            StrokeThickness = 1,
-            StrokeDashArray = new DoubleCollection { 4, 3 },
-            Fill = new SolidColorBrush(Color.FromArgb(18, 108, 182, 255)),
-            IsHitTestVisible = false
-        };
-        Canvas.SetLeft(rect, x0);
-        Canvas.SetTop(rect, y0);
-        host.Children.Add(rect);
     }
 
     private static int ComputeSeed(IReadOnlyList<Point> points)

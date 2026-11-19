@@ -19,9 +19,9 @@
 | 软件名称 | 怪叔叔看图 |
 | 产品常量 | `AppInfo.Name = "怪叔叔看图"` |
 | 程序集名 | `GuaishushuViewer` |
-| 当前版本 | `4.0.0` |
+| 当前版本 | `4.1.0` |
 | 仓库 | `https://github.com/yysdgss/guaishushu-image-viewer` |
-| Release | `https://github.com/yysdgss/guaishushu-image-viewer/releases/tag/v4.0.0` |
+| Release | `https://github.com/yysdgss/guaishushu-image-viewer/releases/tag/v4.1.0` |
 | 许可 | MIT |
 | 目标框架 | `net10.0-windows` |
 | UI 框架 | WPF |
@@ -48,7 +48,7 @@
     <AssemblyName>GuaishushuViewer</AssemblyName>
     <RootNamespace>WBImageViewer</RootNamespace>
     <ApplicationIcon>Assets\app.ico</ApplicationIcon>
-    <Version>4.0.0</Version>
+    <Version>4.1.0</Version>
     <AssemblyVersion>1.2.0.0</AssemblyVersion>
     <FileVersion>1.2.0.0</FileVersion>
     <Product>怪叔叔看图</Product>
@@ -3502,9 +3502,49 @@ RedrawAnnotations();
 - **需求**：工具状态在罗盘与徽标间保持一致。
 - **实现**：`SetLineStyle()` 同时更新全局线型与选中笔迹样式；`ShowToolBadge()` 显示当前标准/手绘模式与框选识别/翻译状态；所有罗盘动作在捕获释放后统一调用并刷新徽标（R102）。
 
+### R103 灵动岛描边与半圆弧翻页
+
+- **需求**：灵动岛外边线过亮；左右翻页按钮方形且触发区小。
+- **实现**：新增 `ThemeEdgeBrush`（低对比冷灰），灵动岛 `IslandShape` 描边由纯白改为该资源，白色横条触发器保持不变；左右翻页区扩大至 72×228 的透明命中区，内部绘制贴合窗口边缘的半圆弧形 Path（R103）。
+
+### R104 底部幻灯片岛可靠触发与 iOS 邻近放大
+
+- **需求**：悬停底部白条无法展开预览条；预览需要鼠标邻近放大的幻灯片效果。
+- **实现**：4px 白条外套 220×28 透明命中区以绕开 WindowChrome 底边拖拽区；`FilmstripHost/BarHit` 共用带 260ms 延时的离开计时器，避免移动途中收起；`FilmstripHost_MouseMove` 以高斯权重为每个 ListBoxItem 设置 Scale/Translate，实现中心放大、两侧缩小的 iOS 式效果（R104）。
+
+### R105 罗盘连线触发防抖
+
+- **需求**：连线触发存在卡顿与断触。
+- **实现**：新增 `_compassLineAngle` 与角度差阈值（至少 2.2° 或扇区跨度的 12%），连线命中扇区只在越过阈值后切换；指针环外判定容差扩大到 +11px；连线始终以当前最深可见环为触发目标，减少重建次数（R105）。
+
+### R106 选中效果与端点/尺寸调整
+
+- **需求**：选中对象不要硬外框；线段端点拖动乱飞；圆圈与自由画需支持宽高调整。
+- **实现**：移除笔迹虚线包围盒与文字卡片外发光，仅保留柔和底光、手柄与卡片自身强调描边；端点拖动统一在图片空间计算（`_editStartImage` 与 `_editOriginalHandleValue`），修复混合坐标系导致的乱飞；`GetHandles()` 为圆圈/自由画提供对角缩放手柄，`ApplyHandle()` 支持两者缩放（R106）。
+
+### R107 工具徽标按元素分化菜单
+
+- **需求**：徽标悬停遮罩突兀；所有元素共用一套菜单且部分选项无效。
+- **实现**：取消悬停变色；`BadgeMenuKind` 分线型/笔触/线径/透明度/颜色五类，点击哪一段只弹对应菜单；选中直线/波浪/双线时名称菜单只列三种线型，圆圈/自由画显示不可转换提示；`ApplyBadgeSize/SetLineStyle/ApplyColorToSelection` 使选项真正作用于选中元素（R107）。
+
+### R108 翻页渲染与轮播开关
+
+- **需求**：翻页卡顿；需要控制末张后的循环行为。
+- **实现**：新增 12 项冻结 Bgra32 解码 LRU 缓存，去掉加载时重复布局与重绘；播放列表复用同一 List 实例并只更新选中项；`AppSettings.LoopPlaylist` 与后台复选框控制循环，关闭后边界翻页按钮置灰且点击闪动提示（R108）。
+
 ---
 
 ## 11. 版本变更记录
+
+### 4.1.0（2026-11-19）
+
+- 灵动岛外描边改为窗口同款低对比风格，翻页区改半圆弧并扩大触发（R103）。
+- 底部幻灯片岛可靠展开并实现 iOS 邻近放大动画（R104）。
+- 罗盘连线触发加入角度迟滞，消除卡顿与断触（R105）。
+- 选中对象仅适度增强；端点拖动修复；圆圈与自由画支持宽高手柄（R106）。
+- 左下角徽标四段独立菜单，按元素/工具匹配且选项真实生效（R107）。
+- 图片解码缓存 + 翻页减负；后台轮播开关与边界闪动提示（R108）。
+- 编译 0 警告 0 错误。
 
 ### 4.0.0（2026-11-19）
 

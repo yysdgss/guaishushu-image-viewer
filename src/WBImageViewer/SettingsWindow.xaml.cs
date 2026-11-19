@@ -24,6 +24,7 @@ public partial class SettingsWindow : Window
 
         var settings = App.Settings;
         SingleWindowBox.IsChecked = settings.SingleWindow;
+        LoopPlaylistBox.IsChecked = settings.LoopPlaylist;
         SelectByTag(MoveModeBox, settings.MoveMode.ToString());
         SelectByTag(CompassModifierBox, settings.CompassModifier.ToString());
         SelectByTag(CompassButtonBox, settings.CompassButton.ToString());
@@ -283,6 +284,7 @@ public partial class SettingsWindow : Window
         var settings = new AppSettings
         {
             SingleWindow = SingleWindowBox.IsChecked == true,
+            LoopPlaylist = LoopPlaylistBox.IsChecked == true,
             MoveMode = Enum.TryParse<WindowMoveMode>(SelectedTag(MoveModeBox), ignoreCase: true, out var mode)
                 ? mode : WindowMoveMode.RightButton,
             CompassModifier = Enum.TryParse<CompassModifier>(SelectedTag(CompassModifierBox), ignoreCase: true, out var compassModifier)

@@ -169,7 +169,7 @@
 
                 <Path x:Name="IslandShape" Stretch="Fill"
                       Data="M 10,0 H 190 C 182.2,0 176,5.4 176,12 V 22 C 176,28.6 169.8,34 164,34 H 36 C 30.2,34 24,28.6 24,22 V 12 C 24,5.4 17.8,0 10,0 Z"
-                      Fill="#F2353537" Stroke="#FFFFFF" StrokeThickness="1">
+                      Fill="#F2353537" Stroke="{StaticResource ThemeEdgeBrush}" StrokeThickness="1">
                     <Path.Effect>
                         <DropShadowEffect Color="#000000" Opacity="0.38" BlurRadius="8" ShadowDepth="2" />
                     </Path.Effect>
@@ -270,29 +270,45 @@
             </StackPanel>
         </Border>
 
-        <!-- Left/right page-turn zones (WeChat-like). Only the small chevron is visible at rest. -->
-        <Border x:Name="PrevZone" Width="34" Height="96" HorizontalAlignment="Left" VerticalAlignment="Center"
-                Background="#00000000" Opacity="0.25" Cursor="Hand" ToolTip="上一张"
+        <!-- Left/right page-turn zones: translucent half-arcs hugging the window edges.
+             The transparent border is the (tall) hit target; the arc is only its skin. -->
+        <Border x:Name="PrevZone" Width="72" Height="228" HorizontalAlignment="Left" VerticalAlignment="Center"
+                Background="#00000000" Opacity="0.22" Cursor="Hand" ToolTip="上一张"
                 MouseEnter="NavZone_Enter" MouseLeave="NavZone_Leave" MouseLeftButtonUp="PrevZone_Click">
-            <TextBlock Text="‹" FontSize="34" Foreground="{StaticResource ThemeTextBrush}"
-                       HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,0,0,3" />
+            <Grid>
+                <Path x:Name="PrevArc" Stretch="Fill"
+                      Data="M0,0 C 66,32 66,196 0,228 L0,0 Z"
+                      Fill="#8A353537" Stroke="{StaticResource ThemeEdgeBrush}" StrokeThickness="1"
+                      IsHitTestVisible="False" />
+                <TextBlock Text="‹" FontSize="42" Foreground="{StaticResource ThemeTextBrush}"
+                           HorizontalAlignment="Left" VerticalAlignment="Center" Margin="12,0,0,3"
+                           IsHitTestVisible="False" />
+            </Grid>
         </Border>
-        <Border x:Name="NextZone" Width="34" Height="96" HorizontalAlignment="Right" VerticalAlignment="Center"
-                Background="#00000000" Opacity="0.25" Cursor="Hand" ToolTip="下一张"
+        <Border x:Name="NextZone" Width="72" Height="228" HorizontalAlignment="Right" VerticalAlignment="Center"
+                Background="#00000000" Opacity="0.22" Cursor="Hand" ToolTip="下一张"
                 MouseEnter="NavZone_Enter" MouseLeave="NavZone_Leave" MouseLeftButtonUp="NextZone_Click">
-            <TextBlock Text="›" FontSize="34" Foreground="{StaticResource ThemeTextBrush}"
-                       HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,0,0,3" />
+            <Grid>
+                <Path x:Name="NextArc" Stretch="Fill"
+                      Data="M72,0 C 6,32 6,196 72,228 L72,0 Z"
+                      Fill="#8A353537" Stroke="{StaticResource ThemeEdgeBrush}" StrokeThickness="1"
+                      IsHitTestVisible="False" />
+                <TextBlock Text="›" FontSize="42" Foreground="{StaticResource ThemeTextBrush}"
+                           HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,12,3"
+                           IsHitTestVisible="False" />
+            </Grid>
         </Border>
 
         <!-- Bottom filmstrip island: a small white bar grows into a translucent carousel. -->
         <Grid x:Name="FilmstripHost" Width="620" Height="102" HorizontalAlignment="Center" VerticalAlignment="Bottom"
-              IsHitTestVisible="False" Opacity="0" ClipToBounds="True"
-              MouseLeave="FilmstripHost_MouseLeave">
+              IsHitTestVisible="False" Opacity="0" ClipToBounds="False"
+              MouseLeave="FilmstripHost_MouseLeave" MouseMove="FilmstripHost_MouseMove">
             <Grid.RenderTransform>
                 <TranslateTransform x:Name="FilmstripSlide" Y="98" />
             </Grid.RenderTransform>
             <Border x:Name="FilmstripPanel" Height="96" VerticalAlignment="Bottom" CornerRadius="18,18,0,0"
-                    Background="#E6353537" BorderBrush="#88FFFFFF" BorderThickness="1,1,0,0">
+                    Background="#E6353537" BorderBrush="#88FFFFFF" BorderThickness="1,1,0,0"
+                    ClipToBounds="False">
                 <Border.Effect>
                     <DropShadowEffect Color="#000000" Opacity="0.45" BlurRadius="14" ShadowDepth="2" />
                 </Border.Effect>
@@ -313,6 +329,8 @@
                                 <Setter Property="Margin" Value="5,0" />
                                 <Setter Property="Background" Value="Transparent" />
                                 <Setter Property="BorderThickness" Value="0" />
+                                <Setter Property="RenderTransformOrigin" Value="0.5,1" />
+                                <Setter Property="ClipToBounds" Value="False" />
                             </Style>
                         </ListBox.ItemContainerStyle>
                         <ListBox.ItemTemplate>
@@ -330,9 +348,14 @@
                 </Grid>
             </Border>
         </Grid>
-        <Border x:Name="FilmstripBar" Width="120" Height="4" HorizontalAlignment="Center" VerticalAlignment="Bottom"
-                CornerRadius="2,2,0,0" Background="#D6FFFFFF" Cursor="Hand" ToolTip="悬停浏览本目录图片"
-                MouseEnter="FilmstripBar_MouseEnter" MouseLeave="FilmstripBar_MouseLeave" />
+        <!-- The visible 4px white trigger sits inside a taller transparent hit area so the
+             bottom WindowChrome resize border cannot swallow the hover. -->
+        <Grid x:Name="FilmstripBarHit" Width="220" Height="28" HorizontalAlignment="Center" VerticalAlignment="Bottom"
+              Background="#00000000" Cursor="Hand" ToolTip="悬停浏览本目录图片"
+              MouseEnter="FilmstripBar_MouseEnter" MouseLeave="FilmstripBar_MouseLeave">
+            <Border x:Name="FilmstripBar" Width="120" Height="4" VerticalAlignment="Bottom"
+                    CornerRadius="2,2,0,0" Background="#D6FFFFFF" IsHitTestVisible="False" />
+        </Grid>
 
         <!-- Top-right slide-out panel. One island-shaped surface carries both
              actions; the pushpin and close are two buttons hosted on that panel. -->

@@ -10,12 +10,15 @@ using Point = System.Windows.Point;
 using MouseEventArgs = System.Windows.Input.MouseEventArgs;
 using MouseButtonEventArgs = System.Windows.Input.MouseButtonEventArgs;
 using Color = System.Windows.Media.Color;
+using Cursors = System.Windows.Input.Cursors;
 
 namespace WBImageViewer;
 
 /// <summary>
-/// Bottom "dynamic island" filmstrip plus left/right page-turn zones. A batch of dropped
-/// files stays as an isolated carousel; otherwise the current image's directory is used.
+/// Bottom "dynamic island" filmstrip plus the left/right arc page-turn zones. A batch of
+/// dropped files stays as an isolated carousel; otherwise the current image's directory
+/// is used. The 4px white bar is only the visible trigger - a taller transparent hit
+/// area sits above the WindowChrome resize border so hover always reaches it.
 /// </summary>
 public partial class MainWindow
 {
@@ -37,9 +40,11 @@ public partial class MainWindow
     internal void SyncPlaylistForCurrentImage()
     {
         if (string.IsNullOrEmpty(_currentImagePath)) return;
-        if (_playlistFromDrop && _playlist.Any(p => string.Equals(p.Path, _currentImagePath, StringComparison.OrdinalIgnoreCase)))
+        if (_playlist.Any(p => string.Equals(p.Path, _currentImagePath, StringComparison.OrdinalIgnoreCase)))
         {
-            RefreshFilmstrip();
+            // Same directory (or same dropped batch): only move the selection, never
+            // rebuild thumbnails or rebind the list while paging.
+            UpdateFilmstripSelection();
             return;
         }
         _playlistFromDrop = false;
@@ -57,7 +62,6 @@ public partial class MainWindow
 
     private void RefreshFilmstrip()
     {
-        _suppressFilmSelection = true;
         foreach (var item in _playlist)
         {
             if (item.Thumbnail != null) continue;
@@ -83,22 +87,46 @@ public partial class MainWindow
                 item.Brush = new SolidColorBrush(Color.FromRgb(140, 140, 150));
             }
         }
-        FilmstripList.ItemsSource = _playlist.ToList();
-        var index = CurrentPlaylistIndex();
-        if (index >= 0) FilmstripList.SelectedIndex = index;
-        FilmstripCounter.Text = _playlist.Count == 0 ? "0 / 0" : $"{index + 1} / {_playlist.Count}";
-        _suppressFilmSelection = false;
+        // Bind once to the live list; later refreshes only repaint existing containers.
+        if (!ReferenceEquals(FilmstripList.ItemsSource, _playlist))
+            FilmstripList.ItemsSource = _playlist;
+        else
+            FilmstripList.Items.Refresh();
+        UpdateFilmstripSelection();
     }
 
     private int CurrentPlaylistIndex() => _playlist.FindIndex(p =>
         string.Equals(p.Path, _currentImagePath, StringComparison.OrdinalIgnoreCase));
+
+    private void UpdateFilmstripSelection()
+    {
+        _suppressFilmSelection = true;
+        var index = CurrentPlaylistIndex();
+        if (index >= 0 && FilmstripList.SelectedIndex != index)
+            FilmstripList.SelectedIndex = index;
+        FilmstripCounter.Text = _playlist.Count == 0 ? "0 / 0" : $"{index + 1} / {_playlist.Count}";
+        if (index >= 0 && FilmstripList.ItemContainerGenerator.ContainerFromIndex(index) is ListBoxItem item)
+            item.BringIntoView();
+        _suppressFilmSelection = false;
+        UpdateNavZoneState();
+    }
 
     private void Navigate(int delta)
     {
         if (_playlist.Count < 2) return;
         var index = CurrentPlaylistIndex();
         if (index < 0) index = 0;
-        NavigateTo((index + delta + _playlist.Count) % _playlist.Count);
+        var target = index + delta;
+        if (target < 0 || target >= _playlist.Count)
+        {
+            if (!App.Settings.LoopPlaylist)
+            {
+                FlashNavZone(delta < 0 ? PrevZone : NextZone);
+                return;
+            }
+            target = (target + _playlist.Count) % _playlist.Count;
+        }
+        NavigateTo(target);
     }
 
     private void NavigateTo(int index)
@@ -109,46 +137,136 @@ public partial class MainWindow
             LoadProject(path);
         else
             LoadImage(path);
-        RefreshFilmstrip();
+        UpdateFilmstripSelection();
     }
 
     private void PrevZone_Click(object sender, MouseButtonEventArgs e) { Navigate(-1); e.Handled = true; }
     private void NextZone_Click(object sender, MouseButtonEventArgs e) { Navigate(1); e.Handled = true; }
 
+    private void UpdateNavZoneState()
+    {
+        var index = CurrentPlaylistIndex();
+        var count = _playlist.Count;
+        var loop = App.Settings.LoopPlaylist;
+        _prevNavEnabled = count > 1 && (loop || index > 0);
+        _nextNavEnabled = count > 1 && (loop || index >= 0 && index < count - 1);
+        ApplyNavZoneVisual(PrevZone, _prevNavEnabled,
+            !_prevNavEnabled ? "已到第一张（轮播已关闭）" : "上一张");
+        ApplyNavZoneVisual(NextZone, _nextNavEnabled,
+            !_nextNavEnabled ? "已到最后一张（轮播已关闭）" : "下一张");
+    }
+
+    private static void ApplyNavZoneVisual(Border zone, bool enabled, string tooltip)
+    {
+        zone.ToolTip = tooltip;
+        zone.Cursor = enabled ? Cursors.Hand : Cursors.No;
+        zone.Opacity = enabled ? (zone.IsMouseOver ? 1 : 0.22) : 0.1;
+    }
+
+    private void FlashNavZone(Border zone)
+    {
+        var anim = new DoubleAnimation(0.14, 0.9, TimeSpan.FromMilliseconds(150))
+        {
+            AutoReverse = true,
+            RepeatBehavior = new RepeatBehavior(2),
+            FillBehavior = FillBehavior.Stop
+        };
+        zone.BeginAnimation(UIElement.OpacityProperty, anim);
+    }
+
     private void NavZone_Enter(object sender, MouseEventArgs e)
     {
-        if (sender is Border zone)
-        {
-            zone.Opacity = 1;
-            zone.Background = new SolidColorBrush(Color.FromArgb(90, 53, 53, 55));
-        }
+        if (sender is not Border zone) return;
+        var enabled = ReferenceEquals(zone, PrevZone) ? _prevNavEnabled : _nextNavEnabled;
+        zone.Opacity = enabled ? 1 : 0.2;
     }
 
     private void NavZone_Leave(object sender, MouseEventArgs e)
     {
-        if (sender is Border zone)
-        {
-            zone.Opacity = 0.25;
-            zone.Background = new SolidColorBrush(Colors.Transparent);
-        }
+        if (sender is not Border zone) return;
+        var enabled = ReferenceEquals(zone, PrevZone) ? _prevNavEnabled : _nextNavEnabled;
+        zone.Opacity = enabled ? 0.22 : 0.1;
     }
 
-    private void FilmstripBar_MouseEnter(object sender, MouseEventArgs e) => AnimateFilmstrip(true);
-    private void FilmstripBar_MouseLeave(object sender, MouseEventArgs e) { }
-    private void FilmstripHost_MouseLeave(object sender, MouseEventArgs e) => AnimateFilmstrip(false);
+    // ---------------- bottom filmstrip island ----------------
+
+    private void FilmstripBar_MouseEnter(object sender, MouseEventArgs e)
+    {
+        _filmstripLeaveTimer?.Stop();
+        AnimateFilmstrip(true);
+    }
+
+    private void FilmstripBar_MouseLeave(object sender, MouseEventArgs e)
+    {
+        _filmstripLeaveTimer?.Stop();
+        _filmstripLeaveTimer?.Start();
+    }
+
+    private void FilmstripHost_MouseLeave(object sender, MouseEventArgs e)
+    {
+        _filmstripLeaveTimer?.Stop();
+        _filmstripLeaveTimer?.Start();
+    }
 
     private void AnimateFilmstrip(bool expand)
     {
+        if (_filmstripExpanded == expand) return;
+        _filmstripExpanded = expand;
         FilmstripHost.IsHitTestVisible = true;
-        var slide = new DoubleAnimation(expand ? 0 : 98, TimeSpan.FromMilliseconds(expand ? 240 : 180))
+
+        var slide = new DoubleAnimation(expand ? 0 : 98, TimeSpan.FromMilliseconds(expand ? 260 : 200))
         {
-            EasingFunction = new QuadraticEase { EasingMode = expand ? EasingMode.EaseOut : EasingMode.EaseIn }
+            EasingFunction = new QuadraticEase { EasingMode = expand ? EasingMode.EaseOut : EasingMode.EaseIn },
+            FillBehavior = FillBehavior.HoldEnd
         };
         FilmstripSlide.BeginAnimation(TranslateTransform.YProperty, slide);
-        var fade = new DoubleAnimation(expand ? 1 : 0, TimeSpan.FromMilliseconds(expand ? 200 : 140));
+
+        var fade = new DoubleAnimation(expand ? 1 : 0, TimeSpan.FromMilliseconds(expand ? 220 : 170))
+        {
+            FillBehavior = FillBehavior.HoldEnd
+        };
+        if (!expand)
+            fade.Completed += (_, _) => { if (!_filmstripExpanded) FilmstripHost.IsHitTestVisible = false; };
         FilmstripHost.BeginAnimation(OpacityProperty, fade);
-        if (!expand) FilmstripHost.IsHitTestVisible = false;
+
         if (expand) RefreshFilmstrip();
+    }
+
+    /// <summary>
+    /// iOS cover-flow style: thumbnails near the pointer grow and lift toward the viewer,
+    /// distant ones shrink. Weights are computed per frame from the pointer's X position.
+    /// </summary>
+    private void FilmstripHost_MouseMove(object sender, MouseEventArgs e)
+    {
+        if (!_filmstripExpanded) return;
+        var mouse = e.GetPosition(FilmstripPanel);
+        const double sigma = 74;
+        for (var i = 0; i < FilmstripList.Items.Count; i++)
+        {
+            if (FilmstripList.ItemContainerGenerator.ContainerFromIndex(i) is not ListBoxItem item) continue;
+            var anchor = item.TransformToAncestor(FilmstripPanel).Transform(new Point(0, item.ActualHeight));
+            var centerX = anchor.X + item.ActualWidth / 2;
+            var dx = mouse.X - centerX;
+            var weight = Math.Exp(-(dx * dx) / (2 * sigma * sigma));
+            var scale = 0.8 + 0.5 * weight;
+            var lift = -12 * weight;
+
+            if (item.RenderTransform is not TransformGroup group ||
+                group.Children.Count != 2 ||
+                group.Children[0] is not ScaleTransform st ||
+                group.Children[1] is not TranslateTransform tt)
+            {
+                st = new ScaleTransform();
+                tt = new TranslateTransform();
+                group = new TransformGroup();
+                group.Children.Add(st);
+                group.Children.Add(tt);
+                item.RenderTransform = group;
+            }
+            st.ScaleX = st.ScaleY = scale;
+            tt.Y = lift;
+            Canvas.SetZIndex(item, (int)(weight * 100));
+        }
     }
 
     private void FilmstripList_SelectionChanged(object sender, SelectionChangedEventArgs e)

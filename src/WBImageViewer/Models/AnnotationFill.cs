@@ -139,23 +139,12 @@ internal sealed class AnnotationText
         var tl = toViewport(TopLeft);
         var s = Math.Clamp(scale, 0.35, 4);
         var host = new Canvas { IsHitTestVisible = false };
-        if (selected)
-        {
-            var glow = new Border
-            {
-                Background = new SolidColorBrush(Color.FromArgb(70, 108, 182, 255)),
-                CornerRadius = new CornerRadius(9), Padding = new Thickness(7),
-                IsHitTestVisible = false
-            };
-            Canvas.SetLeft(glow, tl.X - 7);
-            Canvas.SetTop(glow, tl.Y - 7);
-            host.Children.Add(glow);
-        }
+        // Selection is expressed by the card's own accent border, not by an outer frame.
         var border = new Border
         {
             Background = new SolidColorBrush(Color.FromArgb(225, 18, 22, 30)),
-            BorderBrush = new SolidColorBrush(selected ? Color.FromRgb(255, 200, 80) : Color.FromRgb(90, 160, 230)),
-            BorderThickness = new Thickness(selected ? 2 : 1),
+            BorderBrush = new SolidColorBrush(selected ? Color.FromRgb(180, 215, 255) : Color.FromRgb(90, 160, 230)),
+            BorderThickness = new Thickness(selected ? 1.6 : 1),
             CornerRadius = new CornerRadius(5),
             Padding = new Thickness(7 * s, 5 * s, 7 * s, 5 * s),
             Opacity = Opacity,

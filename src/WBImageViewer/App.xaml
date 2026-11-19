@@ -8,6 +8,8 @@
         <SolidColorBrush x:Key="ThemePanelBrush" Color="#F2353537" />
         <SolidColorBrush x:Key="ThemePanelSoftBrush" Color="#CC242830" />
         <SolidColorBrush x:Key="ThemeStrokeBrush" Color="#FFFFFF" />
+        <!-- Subtle hairline used by the window chrome and dynamic-island outline. -->
+        <SolidColorBrush x:Key="ThemeEdgeBrush" Color="#59E8EAED" />
         <SolidColorBrush x:Key="ThemeTextBrush" Color="#FFE8EAED" />
         <SolidColorBrush x:Key="ThemeMutedTextBrush" Color="#FFC9D1DC" />
         <SolidColorBrush x:Key="ThemeAccentBrush" Color="#FF6CB6FF" />

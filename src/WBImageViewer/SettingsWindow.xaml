@@ -12,6 +12,7 @@
     <StackPanel Margin="18,16,18,18">
         <TextBlock Text="运行方式" FontWeight="SemiBold" Margin="0,0,0,6" />
         <CheckBox x:Name="SingleWindowBox" Content="单窗口模式：新图片替换当前面板（关闭则每打开一张图片开一个新面板）" Margin="0,0,0,14" />
+        <CheckBox x:Name="LoopPlaylistBox" Content="图片轮播：上一页 / 下一页到最后一张后循环（关闭后到边界的翻页按钮禁用并闪动提示）" Margin="0,0,0,14" />
 
         <TextBlock Text="拖动窗口的方式（悬停在图片上）" FontWeight="SemiBold" Margin="0,0,0,6" />
         <ComboBox x:Name="MoveModeBox" Margin="0,0,0,14">
