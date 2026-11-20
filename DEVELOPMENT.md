@@ -21,9 +21,9 @@
 | 程序集名 | `怪叔叔看图`（安装器：`怪叔叔看图安装程序`）|
 | 当前版本 | `4.5.0` |
 | 仓库 | `https://github.com/yysdgss/guaishushu-image-viewer` |
-| Release | `v4.5.0` 待发布（上一版 `v4.4.0`） |
+| Release | `v4.5.0` 已发布（上一版 `v4.4.0`）：https://github.com/yysdgss/guaishushu-image-viewer/releases/tag/v4.5.0 |
 | 许可 | MIT |
-| 目标框架 | `net10.0-windows` |
+| 目标框架 | `net10.0-windows10.0.19041.0`（PDF 渲染需要 Windows 10 19041 SDK API） |
 | UI 框架 | WPF |
 | 辅助框架 | Windows Forms（仅用于 `NotifyIcon`、`Screen`、`ColorDialog`） |
 | 目标系统 | Windows 11 / Windows 10 x64 |

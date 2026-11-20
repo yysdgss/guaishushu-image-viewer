@@ -86,8 +86,8 @@ Windows 缩略图预览：SVG/SVGZ、EMF/WMF、PDF、PSD/AI/EPS，以及 XMind(`
 
 ## 下载
 
-- [单文件运行包（Releases）](../../releases)：`Viewer-v4.5.0.exe`（页面显示名“怪叔叔看图 v4.5.0 单文件运行包”）
-- [Windows 安装程序（推荐）](../../releases)：`Viewer-v4.5.0-Setup.exe`（页面显示名“怪叔叔看图 v4.5.0 Windows 安装程序”）
+- [单文件运行包（v4.5.0）](https://github.com/yysdgss/guaishushu-image-viewer/releases/download/v4.5.0/Viewer-v4.5.0.exe)：页面显示名“怪叔叔看图 v4.5.0 单文件运行包”
+- [Windows 安装程序（推荐，v4.5.0）](https://github.com/yysdgss/guaishushu-image-viewer/releases/download/v4.5.0/Viewer-v4.5.0-Setup.exe)：页面显示名“怪叔叔看图 v4.5.0 Windows 安装程序”
 
 > 本地封装产物为纯中文名 `怪叔叔看图-v4.5.0.exe` / `怪叔叔看图-v4.5.0-Setup.exe`；GitHub Release 上传接口不接受中文资产文件名，因此线上资产使用 `Viewer-` 前缀，中文名称显示在资产 label 中。
 - 严谨开发档案：[DEVELOPMENT.md](DEVELOPMENT.md)（每项需求均附实现逻辑、方式与当前代码片段）
