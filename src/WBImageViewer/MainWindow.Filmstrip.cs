@@ -192,7 +192,7 @@ public partial class MainWindow
         zone.Cursor = enabled ? Cursors.Hand : Cursors.No;
         var (bubble, scale, shift, edge) = NavParts(zone);
         var opacity = !enabled ? 0.02 : zone.IsMouseOver ? 0.7 : 0.04;
-        var scaleX = !enabled ? 0.3 : zone.IsMouseOver ? 1 : 0.3;
+        var scaleX = !enabled ? 0.25 : zone.IsMouseOver ? 0.85 : 0.25;
         AnimateNavBubble(bubble, scale, shift, edge, opacity, scaleX, 190, false);
     }
 
@@ -229,7 +229,7 @@ public partial class MainWindow
         var enabled = ReferenceEquals(zone, PrevZone) ? _prevNavEnabled : _nextNavEnabled;
         var (bubble, scale, shift, edge) = NavParts(zone);
         AnimateNavBubble(bubble, scale, shift, edge,
-            enabled ? 0.7 : 0.16, enabled ? 1 : 0.5, 260, true);
+            enabled ? 0.7 : 0.16, enabled ? 0.85 : 0.45, 260, true);
     }
 
     private void NavZone_Leave(object sender, MouseEventArgs e)
@@ -336,7 +336,6 @@ public partial class MainWindow
     private void ResetFilmItemTransforms()
     {
         _filmVisualStates.Clear();
-        _filmFlatCenters.Clear();
         for (var i = 0; i < FilmstripList.Items.Count; i++)
         {
             if (FilmstripList.ItemContainerGenerator.ContainerFromIndex(i) is not ListBoxItem item) continue;
@@ -346,12 +345,6 @@ public partial class MainWindow
             ((TranslateTransform)group.Children[1]).X = 0;
             ((TranslateTransform)group.Children[1]).Y = 0;
             System.Windows.Controls.Panel.SetZIndex(item, 0);
-
-            // At rest the only transform is the known ScaleTransform about RenderTransformOrigin
-            // (0.5,1). Inverting that analytically gives the true unscaled layout centre.
-            var anchor = item.TransformToAncestor(FilmstripPanel)
-                .Transform(new Point(0, item.ActualHeight));
-            _filmFlatCenters[item] = anchor.X + item.ActualWidth * 0.5 * DockRestScale;
         }
     }
 
@@ -370,143 +363,114 @@ public partial class MainWindow
         return group;
     }
 
-    // macOS Dock tuning constants.
-    private const double DockRestScale = 0.85;   // icon size when the pointer is far away
-    private const double DockPeakScale = 1.75;   // icon size directly under the pointer
-    private const double DockSpread = 118;       // half-width of the influence region (px)
-    private const double DockLift = 20;          // upward lift of the peak icon (px)
-    private const double DockSpring = 0.24;      // spring stiffness toward the target
-    private const double DockDamping = 0.74;     // velocity damping
+    // macOS Dock tuning constants. The pointer selects exactly one icon; every other
+    // icon stays at rest size and only slides aside to make room for it.
+    private const double DockRestScale = 0.85;   // icon size when the pointer is elsewhere
+    private const double DockPeakScale = 1.65;   // icon size directly under the pointer
+    private const double DockLift = 18;          // upward lift of the focused icon (px)
+    private const double DockSpring = 0.28;      // spring stiffness toward the target
+    private const double DockDamping = 0.72;     // velocity damping
+    private const double DockPickPadding = 8;    // forgiving hit area around each icon
+
+    private List<ListBoxItem> RealizedFilmItems()
+    {
+        var items = new List<ListBoxItem>();
+        for (var i = 0; i < FilmstripList.Items.Count; i++)
+            if (FilmstripList.ItemContainerGenerator.ContainerFromIndex(i) is ListBoxItem item &&
+                item.ActualWidth > 0)
+                items.Add(item);
+        return items;
+    }
+
+    private Rect FilmBounds(ListBoxItem item)
+        => item.TransformToAncestor(FilmstripPanel)
+            .TransformBounds(new Rect(0, 0, item.ActualWidth, item.ActualHeight));
 
     /// <summary>
-    /// macOS Dock magnification, rebuilt from the patent's cosine falloff rather than a
-    /// Gaussian. Each icon's scale is h + (H-h)*cos(pi*d / 2W) clamped at d = W, which reaches
-    /// rest size with zero slope at the region edge (no hard cutoff). Neighbour displacement
-    /// is derived from the difference of the scales on each side of an icon, so the row tiles
-    /// exactly: magnified icons push neighbours aside with no overlap and no gaps.
-    /// Values are integrated with a damped spring each frame for the characteristic bounce.
+    /// Resolve the icon whose current visual bounds sit under the pointer. The bounds
+    /// come from the live render transform, so the enlarged icon itself stays the hit
+    /// target even after its neighbours slide away.
+    /// </summary>
+    private int HoveredFilmIndex(IReadOnlyList<ListBoxItem> items, double pointerX)
+    {
+        if (double.IsNaN(pointerX) || items.Count == 0) return -1;
+
+        var best = -1;
+        var bestDistance = double.MaxValue;
+        var bestHalfWidth = 0d;
+        for (var i = 0; i < items.Count; i++)
+        {
+            var bounds = FilmBounds(items[i]);
+            var center = (bounds.Left + bounds.Right) * 0.5;
+            var distance = Math.Abs(pointerX - center);
+            if (distance >= bestDistance) continue;
+            best = i;
+            bestDistance = distance;
+            bestHalfWidth = bounds.Width * 0.5;
+        }
+
+        return bestDistance <= bestHalfWidth + DockPickPadding ? best : -1;
+    }
+
+    /// <summary>
+    /// One focused thumbnail scales up; the rest remain at rest size and split around
+    /// it by half of the added width. Damped spring integration gives the macOS bounce
+    /// without letting neighbouring icons grow into a blurred cluster.
     /// </summary>
     private void FilmRendering(object? sender, EventArgs e)
     {
         if (!_filmstripExpanded) return;
-        var items = new List<ListBoxItem>();
-        for (var i = 0; i < FilmstripList.Items.Count; i++)
-            if (FilmstripList.ItemContainerGenerator.ContainerFromIndex(i) is ListBoxItem item)
-                items.Add(item);
+        var items = RealizedFilmItems();
         if (items.Count == 0) return;
 
-        // Flat (untransformed) layout centres. Recomputing them from the live render transform
-        // on every frame fed magnification back into its own input and caused jitter, so each
-        // container's centre is captured once. Containers may be unrealized when the strip is
-        // first expanded, so a missing entry is filled in here from the current known transform.
-        var centers = new double[items.Count];
-        var widths = new double[items.Count];
+        var hovered = HoveredFilmIndex(items, _filmPointerX);
+        var extra = hovered >= 0
+            ? (items[hovered].ActualWidth + 12) * (DockPeakScale - DockRestScale)
+            : 0;
+
         for (var i = 0; i < items.Count; i++)
         {
             var item = items[i];
-            if (!_filmFlatCenters.TryGetValue(item, out var cx))
-            {
-                var state0 = _filmVisualStates.TryGetValue(item, out var s0)
-                    ? s0.Scale : DockRestScale;
-                var tx = _filmVisualStates.TryGetValue(item, out var s1) ? s1.OffsetX : 0;
-                var anchor = item.TransformToAncestor(FilmstripPanel)
-                    .Transform(new Point(0, item.ActualHeight));
-                cx = anchor.X + item.ActualWidth * 0.5 * state0 - tx;
-                _filmFlatCenters[item] = cx;
-            }
-            centers[i] = cx;
-            widths[i] = Math.Max(1, item.ActualWidth + 12);
-        }
-
-        var pointerX = double.IsNaN(_filmPointerX) ? centers[items.Count / 2] : _filmPointerX;
-        var active = !double.IsNaN(_filmPointerX);
-
-        // 1. Spring-integrate each icon's scale toward the cosine target.
-        var scales = new double[items.Count];
-        for (var i = 0; i < items.Count; i++)
-        {
-            var item = items[i];
-            double weight = 0;
-            if (active)
-            {
-                var d = Math.Abs(centers[i] - pointerX);
-                if (d < DockSpread)
-                    weight = Math.Cos(Math.PI * d / (2 * DockSpread));
-            }
-            var target = DockRestScale + (DockPeakScale - DockRestScale) * weight;
-
             if (!_filmVisualStates.TryGetValue(item, out var state))
             {
                 state = new FilmVisualState { Scale = DockRestScale };
                 _filmVisualStates[item] = state;
             }
-            state.ScaleVel = (state.ScaleVel + (target - state.Scale) * DockSpring) * DockDamping;
+
+            var targetScale = i == hovered ? DockPeakScale : DockRestScale;
+            state.ScaleVel = (state.ScaleVel + (targetScale - state.Scale) * DockSpring) * DockDamping;
             state.Scale += state.ScaleVel;
-            scales[i] = state.Scale;
-        }
 
-        // 2. Exact tiling: shift each icon by half the extra width accumulated on either side.
-        //    This is the discrete form of the patent's edge-sampled magnification function.
-        var extras = new double[items.Count];
-        for (var i = 0; i < items.Count; i++)
-            extras[i] = widths[i] * (scales[i] - DockRestScale);
-
-        for (var i = 0; i < items.Count; i++)
-        {
-            var item = items[i];
-            double leftExtra = 0, rightExtra = 0;
-            for (var j = 0; j < i; j++) leftExtra += extras[j];
-            for (var j = i + 1; j < items.Count; j++) rightExtra += extras[j];
-
-            // Keep the whole strip centred while icons slide apart around the pointer.
-            var targetOffsetX = (leftExtra - rightExtra) * 0.5;
-            var weight = (scales[i] - DockRestScale) / (DockPeakScale - DockRestScale);
-            var targetOffsetY = -DockLift * weight;
-
-            if (!_filmVisualStates.TryGetValue(item, out var state)) continue;
+            var targetOffsetX = hovered < 0
+                ? 0
+                : i < hovered ? -extra * 0.5 : i > hovered ? extra * 0.5 : 0;
+            var targetOffsetY = i == hovered ? -DockLift : 0;
             state.OffsetX += (targetOffsetX - state.OffsetX) * DockSpring;
             state.OffsetY += (targetOffsetY - state.OffsetY) * DockSpring;
 
             var group = EnsureFilmTransforms(item);
-            ((ScaleTransform)group.Children[0]).ScaleX = scales[i];
-            ((ScaleTransform)group.Children[0]).ScaleY = scales[i];
+            ((ScaleTransform)group.Children[0]).ScaleX = state.Scale;
+            ((ScaleTransform)group.Children[0]).ScaleY = state.Scale;
             ((TranslateTransform)group.Children[1]).X = state.OffsetX;
             ((TranslateTransform)group.Children[1]).Y = state.OffsetY;
-            System.Windows.Controls.Panel.SetZIndex(item, (int)(scales[i] * 100));
+            System.Windows.Controls.Panel.SetZIndex(item, i == hovered ? 1000 : 0);
         }
     }
 
     /// <summary>
-    /// Magnified thumbnails extend far beyond the ListBox viewport. WPF will not route a
-    /// click on that overhang to the container, so resolve the nearest icon from the
-    /// pointer position ourselves and open it explicitly.
+    /// Clicking anywhere on a thumbnail - including the enlarged overhang - opens that
+    /// exact picture. The hovered index is derived from the same visual bounds used by
+    /// the magnification loop, so the click target always matches what is under the mouse.
     /// </summary>
     private void FilmstripHost_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
     {
-        if (!_filmstripExpanded || FilmstripList.Items.Count == 0) return;
+        if (!_filmstripExpanded) return;
         var pointer = e.GetPosition(FilmstripPanel).X;
-        var bestIndex = -1;
-        var bestDistance = double.MaxValue;
-        for (var i = 0; i < FilmstripList.Items.Count; i++)
-        {
-            if (FilmstripList.ItemContainerGenerator.ContainerFromIndex(i) is not ListBoxItem item) continue;
-            if (!_filmFlatCenters.TryGetValue(item, out var cx))
-            {
-                var anchor = item.TransformToAncestor(FilmstripPanel)
-                    .Transform(new Point(0, item.ActualHeight));
-                cx = anchor.X + item.ActualWidth * 0.5 * DockRestScale;
-            }
-            // Include the current slide-aside offset so a magnified icon stays clickable.
-            var center = cx + (_filmVisualStates.TryGetValue(item, out var state) ? state.OffsetX : 0);
-            var distance = Math.Abs(pointer - center);
-            if (distance < bestDistance) { bestDistance = distance; bestIndex = i; }
-        }
-        if (bestIndex < 0 || bestDistance > 90) return;
+        var items = RealizedFilmItems();
+        var index = HoveredFilmIndex(items, pointer);
+        if (index < 0) return;
 
-        _suppressFilmSelection = true;
-        NavigateTo(bestIndex);
-        FilmstripList.SelectedIndex = bestIndex;
-        _suppressFilmSelection = false;
+        NavigateTo(index);
         e.Handled = true;
     }
 

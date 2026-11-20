@@ -26,8 +26,10 @@ internal static class Program
 internal sealed class InstallWizard : Form
 {
     private const string ExeName = "怪叔叔看图.exe";
+    private const string UninstallerName = "怪叔叔看图卸载.exe";
     private const string ProgId = "怪叔叔看图.Image";
     private const string ResourceName = "ViewerExe.bin";
+    private const string UninstallerResourceName = "UninstallerExe.bin";
     private static readonly string[] Extensions = SupportedFormats.All;
 
     private static string Version => Assembly.GetExecutingAssembly()
@@ -633,7 +635,7 @@ internal sealed class InstallWizard : Form
 
     private bool InstallCore(string destination, IProgress<InstallEvent> progress)
     {
-        if (!Stage(progress, 8, "创建目标文件夹", () =>
+        if (!Stage(progress, 6, "创建目标文件夹", () =>
             {
                 Directory.CreateDirectory(destination);
                 var probe = Path.Combine(destination, ".gsw-write-test");
@@ -642,7 +644,7 @@ internal sealed class InstallWizard : Form
             })) return false;
 
         var exePath = Path.Combine(destination, ExeName);
-        if (!Stage(progress, 26, "释放主程序", () =>
+        if (!Stage(progress, 20, "释放主程序", () =>
             {
                 using var resource = Assembly.GetExecutingAssembly().GetManifestResourceStream(ResourceName);
                 if (resource is null) throw new InvalidOperationException("安装程序内未找到主程序资源。");
@@ -650,29 +652,42 @@ internal sealed class InstallWizard : Form
                 resource.CopyTo(file);
             })) return false;
 
+        var uninstallerPath = Path.Combine(destination, UninstallerName);
+        if (!Stage(progress, 34, "释放卸载程序", () =>
+            {
+                using var resource = Assembly.GetExecutingAssembly().GetManifestResourceStream(UninstallerResourceName);
+                if (resource is null) throw new InvalidOperationException("安装程序内未找到卸载程序资源。");
+                using var file = new FileStream(uninstallerPath, FileMode.Create, FileAccess.Write, FileShare.None);
+                resource.CopyTo(file);
+            })) return false;
+
         // File association is best-effort. Windows protects each extension's UserChoice
         // record with a per-user hash, and a single protected/rolled-back format must not
         // abort the whole installation. ProgID, OpenWithProgids and the Explorer context
         // menu are still written for every format; only the "default" flag may be skipped.
-        if (!Stage(progress, 62, "注册文件关联与右键菜单", () =>
+        if (!Stage(progress, 58, "注册文件关联与右键菜单", () =>
             {
                 var errors = DefaultAssociationService.ApplyAll(exePath, Extensions);
                 foreach (var error in errors)
-                    progress.Report(new InstallEvent(InstallEventKind.Warning, 62, error));
+                    progress.Report(new InstallEvent(InstallEventKind.Warning, 58, error));
                 if (errors.Count > 0)
                     _associationNote = $"其中 {errors.Count} 个格式未能设为默认打开方式（程序已完整安装，可在“打开方式”中手动选择）。";
             })) return false;
 
-        if (!Stage(progress, 88, "创建快捷方式", () =>
+        if (!Stage(progress, 80, "创建快捷方式", () =>
             {
                 var desktop = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
-                CreateShortcut(Path.Combine(desktop, "怪叔叔看图.lnk"), exePath);
                 var programs = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.StartMenu), "Programs");
-                Directory.CreateDirectory(programs);
+                var menuFolder = Path.Combine(programs, "怪叔叔看图");
+                Directory.CreateDirectory(menuFolder);
+
+                CreateShortcut(Path.Combine(desktop, "怪叔叔看图.lnk"), exePath);
                 CreateShortcut(Path.Combine(programs, "怪叔叔看图.lnk"), exePath);
+                CreateShortcut(Path.Combine(menuFolder, "怪叔叔看图.lnk"), exePath);
+                CreateShortcut(Path.Combine(menuFolder, "卸载 怪叔叔看图.lnk"), uninstallerPath);
             })) return false;
 
-        if (!Stage(progress, 96, "写入卸载信息", () =>
+        if (!Stage(progress, 94, "写入卸载信息", () =>
             {
                 using var uninstall = Registry.CurrentUser.CreateSubKey(
                     @"Software\Microsoft\Windows\CurrentVersion\Uninstall\怪叔叔看图");
@@ -681,7 +696,10 @@ internal sealed class InstallWizard : Form
                 uninstall.SetValue("Publisher", "怪叔叔");
                 uninstall.SetValue("DisplayIcon", exePath);
                 uninstall.SetValue("InstallLocation", destination);
-                uninstall.SetValue("UninstallString", $"\"{exePath}\" --uninstall");
+                uninstall.SetValue("UninstallString", $"\"{uninstallerPath}\"");
+                uninstall.SetValue("QuietUninstallString", $"\"{uninstallerPath}\" /S");
+                uninstall.SetValue("NoModify", 1, RegistryValueKind.DWord);
+                uninstall.SetValue("NoRepair", 1, RegistryValueKind.DWord);
             })) return false;
 
         SHChangeNotify(0x08000000, 0, IntPtr.Zero, IntPtr.Zero);

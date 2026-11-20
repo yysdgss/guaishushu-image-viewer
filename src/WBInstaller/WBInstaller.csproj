@@ -29,6 +29,9 @@
     <EmbeddedResource Include="..\..\artifacts\setup-stage\怪叔叔看图.exe"
                       LogicalName="ViewerExe.bin"
                       Condition="Exists('..\..\artifacts\setup-stage\怪叔叔看图.exe')" />
+    <EmbeddedResource Include="..\..\artifacts\setup-stage\怪叔叔看图卸载.exe"
+                      LogicalName="UninstallerExe.bin"
+                      Condition="Exists('..\..\artifacts\setup-stage\怪叔叔看图卸载.exe')" />
   </ItemGroup>
 
 </Project>

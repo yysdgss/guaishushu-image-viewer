@@ -138,7 +138,6 @@ public partial class MainWindow : Window
     private double _filmPointerX = double.NaN;
     private bool _filmRenderingHooked;
     private readonly Dictionary<ListBoxItem, FilmVisualState> _filmVisualStates = new();
-    private readonly Dictionary<ListBoxItem, double> _filmFlatCenters = new();
 
     private sealed class FilmVisualState
     {

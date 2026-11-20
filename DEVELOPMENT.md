@@ -19,9 +19,9 @@
 | 软件名称 | 怪叔叔看图 |
 | 产品常量 | `AppInfo.Name = "怪叔叔看图"` |
 | 程序集名 | `怪叔叔看图`（安装器：`怪叔叔看图安装程序`）|
-| 当前版本 | `4.5.1` |
+| 当前版本 | `4.5.2` |
 | 仓库 | `https://github.com/yysdgss/guaishushu-image-viewer` |
-| Release | `v4.5.1` 已发布（上一版 `v4.5.0`）：https://github.com/yysdgss/guaishushu-image-viewer/releases/tag/v4.5.1 |
+| Release | `v4.5.2` 已发布（上一版 `v4.5.1`）：https://github.com/yysdgss/guaishushu-image-viewer/releases/tag/v4.5.2 |
 | 许可 | MIT |
 | 目标框架 | `net10.0-windows10.0.19041.0`（PDF 渲染需要 Windows 10 19041 SDK API） |
 | UI 框架 | WPF |
@@ -169,9 +169,11 @@ public static string SettingsPath => Path.Combine(SettingsDirectory, "settings.j
 | `src/WBImageViewer/Native/Win32.cs` | Win32 常量、结构体、P/Invoke |
 | `src/WBImageViewer/Assets/app.ico` | 应用与托盘图标 |
 | `src/WBImageViewer/Assets/donate.png` | 打赏二维码 |
-| `packaging/install.cmd` | 安装包内安装脚本 |
+| `src/WBInstaller/` | 五步 Windows 安装向导，内嵌主程序、中文许可与卸载器 |
+| `src/WBUninstaller/` | 独立卸载工具：清理文件、快捷方式、关联、配置与卸载注册信息 |
+| `packaging/install.cmd` | 旧版安装脚本（历史保留） |
 | `封装单文件运行包.bat` | 生成单文件 exe |
-| `封装安装包.bat` | 生成 ZIP 安装包 |
+| `封装安装包.bat` | 生成带独立卸载器的安装包 exe |
 | `.github/ISSUE_TEMPLATE/` | GitHub Issue 模板 |
 | `DEVELOPMENT.md` | 本开发档案 |
 | `README.md` | 用户说明 |
@@ -3628,9 +3630,30 @@ RedrawAnnotations();
 - **需求**：安装向导的许可协议正文仍为英文，与全中文软件定位不符。
 - **实现**：新增 `LICENSE.zh-CN.txt` 中文 MIT 许可文本；安装器改为内嵌该中文文本（资源逻辑名仍为 `LICENSE.txt`），许可显示框字体由 Consolas 改为 Microsoft YaHei UI，保证中文显示清晰；仓库根目录保留英文原文用于通用许可声明。重新封装 v4.5.1 单文件与安装包，并在安装包二进制中确认中文声明存在、英文正文已不存在（R127）。
 
+### R128 完整安装与独立卸载工具
+
+- **需求**：原安装程序只复制主程序与快捷方式，卸载仅靠主程序的 `--uninstall` 粗放删除固定目录，没有独立卸载程序，也无法完整清除文件关联、右键菜单与用户配置。
+- **实现**：新增 `src/WBUninstaller/` 独立 WinForms 卸载器，安装器内嵌并在目标目录释放 `怪叔叔看图卸载.exe`；开始菜单程序组提供“卸载 怪叔叔看图”入口，卸载注册项写入独立 `UninstallString` 与 `QuietUninstallString`。卸载器可关闭正在运行的主程序，清理桌面/开始菜单快捷方式、ProgID、OpenWithProgids、SystemFileAssociations 右键动词、UserChoice 默认记录、关联提示、用户配置目录及卸载注册项，并在退出后自删。主程序的 `--uninstall` 改为转发到独立卸载器（R128）。
+
+### R129 左右翻页流线再扁平化
+
+- **需求**：上一版 S 形边缘凸起反而更突兀，与用户截图中的细长红线意象不符。
+- **实现**：触发区保留 56×150 透明命中区，可见曲线改为 28×132 的细长月牙，最大内凸从 12px 降到 5px；曲线控制点拉长以减少折角，悬停宽度由 100% 降到 85%，填充与高光 alpha 同步降低，形成贴边流动感而非厚重凸起（R129）。
+
+### R130 Dock 单图标聚焦放大与点击修复
+
+- **需求**：底部 macOS Dock 放大混乱、邻图标一起变形，点击缩略图不能稳定打开对应图片。
+- **实现**：放大逻辑改为“当前指针下只有一个图标聚焦”：用实时渲染包围盒定位悬停项，仅该项放大到 1.65 倍并上浮，其余图标保持 0.85 倍并各向两侧让出一半增量宽度；弹簧积分保留回弹但不再让邻图标膨胀。为 `FilmstripHost` 与 `FilmstripPanel` 增加透明背景使其覆盖放大溢出区可命中，点击处理复用同一包围盒索引，直接打开对应图片（R130）。
+
 ---
 
 ## 11. 版本变更记录
+
+### 4.5.2（2026-11-20）
+
+- 安装器释放独立卸载程序，开始菜单提供卸载入口，卸载器完整清理程序文件、快捷方式、关联、配置与注册信息（R128）。
+- 左右翻页流线进一步扁平化，降低凸起与高光强度（R129）。
+- 底部 Dock 改为仅放大指针下的单张缩略图，并修复点击打开对应图片（R130）。
 
 ### 4.5.1（2026-11-20）
 

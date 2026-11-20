@@ -25,30 +25,25 @@ public partial class App : Application
         {
             try
             {
-                var dest = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                    "怪叔叔看图");
-                var legacyDest = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                    "GuaishushuViewer");
-                foreach (var folder in new[]
-                         {
-                             Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory),
-                             Environment.GetFolderPath(Environment.SpecialFolder.Programs)
-                         })
+                var uninstaller = Path.Combine(AppContext.BaseDirectory, "怪叔叔看图卸载.exe");
+                if (File.Exists(uninstaller))
                 {
-                    var shortcut = Path.Combine(folder, $"{AppInfo.Name}.lnk");
-                    if (File.Exists(shortcut)) File.Delete(shortcut);
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(uninstaller)
+                    {
+                        UseShellExecute = true
+                    });
                 }
-                Microsoft.Win32.Registry.CurrentUser.DeleteSubKeyTree(
-                    @"Software\Microsoft\Windows\CurrentVersion\Uninstall\怪叔叔看图", false);
-                Microsoft.Win32.Registry.CurrentUser.DeleteSubKeyTree(@"Software\Classes\怪叔叔看图.Image", false);
-                Microsoft.Win32.Registry.CurrentUser.DeleteSubKeyTree(
-                    @"Software\Microsoft\Windows\CurrentVersion\Uninstall\GuaishushuViewer", false);
-                Microsoft.Win32.Registry.CurrentUser.DeleteSubKeyTree(
-                    @"Software\Classes\GuaishushuViewer.Image", false);
-                if (Directory.Exists(dest)) Directory.Delete(dest, true);
-                if (Directory.Exists(legacyDest)) Directory.Delete(legacyDest, true);
+                else
+                {
+                    MessageBox.Show("未找到卸载程序。请在“设置 → 应用”中卸载，或重新运行安装程序修复安装。",
+                        AppInfo.Name, MessageBoxButton.OK, MessageBoxImage.Warning);
+                }
             }
-            catch { /* best effort */ }
+            catch (Exception ex)
+            {
+                MessageBox.Show("启动卸载程序失败：" + ex.Message,
+                    AppInfo.Name, MessageBoxButton.OK, MessageBoxImage.Error);
+            }
             Shutdown();
             return;
         }

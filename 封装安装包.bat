@@ -7,9 +7,11 @@ rem actual product and installer exe names are Chinese.
 set "ROOT=%~dp0"
 set "PROJ=%ROOT%src\WBImageViewer\WBImageViewer.csproj"
 set "SETUP_PROJ=%ROOT%src\WBInstaller\WBInstaller.csproj"
+set "UNINSTALL_PROJ=%ROOT%src\WBUninstaller\WBUninstaller.csproj"
 set "BUILD=%ROOT%artifacts"
 set "STAGE=%BUILD%\setup-stage"
 set "INSTALLER_STAGE=%BUILD%\installer-stage"
+set "UNINSTALLER_STAGE=%BUILD%\uninstaller-stage"
 set "OUT=%BUILD%\setup"
 set "VERSION="
 for /f "tokens=3 delims=<>" %%V in ('findstr /i /c:"<Version>" "%PROJ%"') do set "VERSION=%%V"
@@ -31,12 +33,14 @@ if errorlevel 1 (
 
 if exist "%STAGE%" rd /s /q "%STAGE%"
 if exist "%INSTALLER_STAGE%" rd /s /q "%INSTALLER_STAGE%"
+if exist "%UNINSTALLER_STAGE%" rd /s /q "%UNINSTALLER_STAGE%"
 if exist "%OUT%" rd /s /q "%OUT%"
 mkdir "%STAGE%" >nul
 mkdir "%INSTALLER_STAGE%" >nul
+mkdir "%UNINSTALLER_STAGE%" >nul
 mkdir "%OUT%" >nul
 
-echo [1/2] Publishing viewer into installer staging...
+echo [1/3] Publishing viewer into installer staging...
 dotnet publish "%PROJ%" -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -p:DebugType=None -o "%STAGE%"
 if errorlevel 1 (
   echo [ERROR] Viewer publish failed.
@@ -51,7 +55,19 @@ if not defined BUILT_EXE (
 for %%F in ("%BUILT_EXE%") do set "BASE_NAME=%%~nF"
 set "FINAL_EXE=%OUT%\%BASE_NAME%-v%VERSION%-Setup.exe"
 
-echo [2/2] Building Windows installer...
+echo [2/3] Publishing uninstaller into installer staging...
+dotnet publish "%UNINSTALL_PROJ%" -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -p:DebugType=None -p:Version=%VERSION% -o "%UNINSTALLER_STAGE%"
+if errorlevel 1 (
+  echo [ERROR] Uninstaller publish failed.
+  goto cleanup
+)
+copy /Y "%UNINSTALLER_STAGE%\*.exe" "%STAGE%\" >nul
+if errorlevel 1 (
+  echo [ERROR] Could not stage uninstaller exe.
+  goto cleanup
+)
+
+echo [3/3] Building Windows installer...
 dotnet publish "%SETUP_PROJ%" -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -p:DebugType=None -p:Version=%VERSION% -o "%INSTALLER_STAGE%"
 if errorlevel 1 (
   echo [ERROR] Installer publish failed.
@@ -72,6 +88,7 @@ echo.
 :cleanup
 if exist "%STAGE%" rd /s /q "%STAGE%"
 if exist "%INSTALLER_STAGE%" rd /s /q "%INSTALLER_STAGE%"
+if exist "%UNINSTALLER_STAGE%" rd /s /q "%UNINSTALLER_STAGE%"
 
 :end
 if /i not "%~1"=="--ci" pause

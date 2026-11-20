@@ -73,18 +73,18 @@
         <!-- Edge page-turn: a subtle inward S-curve that uses the same graphite glass
              and soft white hairline as the rest of the theme (no bright accent glow). -->
         <LinearGradientBrush x:Key="EdgeBulgeBrush" StartPoint="0,0" EndPoint="1,0">
-            <GradientStop Color="#2A434B57" Offset="0" />
-            <GradientStop Color="#1C242830" Offset="0.6" />
+            <GradientStop Color="#1D434B57" Offset="0" />
+            <GradientStop Color="#13242830" Offset="0.6" />
             <GradientStop Color="#00242830" Offset="1" />
         </LinearGradientBrush>
         <LinearGradientBrush x:Key="EdgeBulgeRightBrush" StartPoint="1,0" EndPoint="0,0">
-            <GradientStop Color="#2A434B57" Offset="0" />
-            <GradientStop Color="#1C242830" Offset="0.6" />
+            <GradientStop Color="#1D434B57" Offset="0" />
+            <GradientStop Color="#13242830" Offset="0.6" />
             <GradientStop Color="#00242830" Offset="1" />
         </LinearGradientBrush>
         <LinearGradientBrush x:Key="EdgeHighlightBrush" StartPoint="0,0" EndPoint="0,1">
             <GradientStop Color="#00FFFFFF" Offset="0" />
-            <GradientStop Color="#42FFFFFF" Offset="0.5" />
+            <GradientStop Color="#2EFFFFFF" Offset="0.5" />
             <GradientStop Color="#00FFFFFF" Offset="1" />
         </LinearGradientBrush>
         <LinearGradientBrush x:Key="ThumbGlossBrush" StartPoint="0,0" EndPoint="0,1">
@@ -297,42 +297,42 @@
         <Border x:Name="PrevZone" Width="56" Height="150" HorizontalAlignment="Left" VerticalAlignment="Center"
                 Background="#00000000" Cursor="Hand" ToolTip="上一张"
                 MouseEnter="NavZone_Enter" MouseLeave="NavZone_Leave" MouseLeftButtonUp="PrevZone_Click">
-            <Grid x:Name="PrevBubble" Width="34" Height="118" HorizontalAlignment="Left" VerticalAlignment="Center"
+            <Grid x:Name="PrevBubble" Width="28" Height="132" HorizontalAlignment="Left" VerticalAlignment="Center"
                   Opacity="0" IsHitTestVisible="False">
                 <Grid.RenderTransform>
                     <TransformGroup>
                         <ScaleTransform x:Name="PrevBubbleScale" ScaleX="0.3" ScaleY="0.85"
-                                        CenterX="0" CenterY="59" />
-                        <TranslateTransform x:Name="PrevBubbleShift" X="-6" />
+                                        CenterX="0" CenterY="66" />
+                        <TranslateTransform x:Name="PrevBubbleShift" X="-4" />
                     </TransformGroup>
                 </Grid.RenderTransform>
                 <Path Stretch="Fill" Fill="{StaticResource EdgeBulgeBrush}"
-                      Data="M 0,0 C 0,34 12,44 12,59 C 12,74 0,84 0,118 Z"
+                      Data="M 0,0 C 0,44 5,52 5,66 C 5,80 0,88 0,132 Z"
                       IsHitTestVisible="False" />
                 <Path Stretch="Fill" Fill="Transparent" Stroke="{StaticResource EdgeHighlightBrush}"
                       StrokeThickness="1" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
-                      Data="M 0,2 C 0,34 12,44 12,59 C 12,74 0,84 0,116"
+                      Data="M 0,3 C 0,44 5,52 5,66 C 5,80 0,88 0,129"
                       IsHitTestVisible="False" />
             </Grid>
         </Border>
         <Border x:Name="NextZone" Width="56" Height="150" HorizontalAlignment="Right" VerticalAlignment="Center"
                 Background="#00000000" Cursor="Hand" ToolTip="下一张"
                 MouseEnter="NavZone_Enter" MouseLeave="NavZone_Leave" MouseLeftButtonUp="NextZone_Click">
-            <Grid x:Name="NextBubble" Width="34" Height="118" HorizontalAlignment="Right" VerticalAlignment="Center"
+            <Grid x:Name="NextBubble" Width="28" Height="132" HorizontalAlignment="Right" VerticalAlignment="Center"
                   Opacity="0" IsHitTestVisible="False">
                 <Grid.RenderTransform>
                     <TransformGroup>
                         <ScaleTransform x:Name="NextBubbleScale" ScaleX="0.3" ScaleY="0.85"
-                                        CenterX="34" CenterY="59" />
-                        <TranslateTransform x:Name="NextBubbleShift" X="6" />
+                                        CenterX="28" CenterY="66" />
+                        <TranslateTransform x:Name="NextBubbleShift" X="4" />
                     </TransformGroup>
                 </Grid.RenderTransform>
                 <Path Stretch="Fill" Fill="{StaticResource EdgeBulgeRightBrush}"
-                      Data="M 34,0 C 34,34 22,44 22,59 C 22,74 34,84 34,118 Z"
+                      Data="M 28,0 C 28,44 23,52 23,66 C 23,80 28,88 28,132 Z"
                       IsHitTestVisible="False" />
                 <Path Stretch="Fill" Fill="Transparent" Stroke="{StaticResource EdgeHighlightBrush}"
                       StrokeThickness="1" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
-                      Data="M 34,2 C 34,34 22,44 22,59 C 22,74 34,84 34,116"
+                      Data="M 28,3 C 28,44 23,52 23,66 C 23,80 28,88 28,129"
                       IsHitTestVisible="False" />
             </Grid>
         </Border>
@@ -341,14 +341,14 @@
              The transparent layout grid keeps pointer coordinates stable while the
              items themselves scale upward from their bottom edge. -->
         <Grid x:Name="FilmstripHost" Width="720" Height="150" HorizontalAlignment="Center" VerticalAlignment="Bottom"
-              IsHitTestVisible="False" Opacity="0" ClipToBounds="False"
+              Background="#00000000" IsHitTestVisible="False" Opacity="0" ClipToBounds="False"
               MouseLeave="FilmstripHost_MouseLeave" MouseMove="FilmstripHost_MouseMove"
               PreviewMouseLeftButtonUp="FilmstripHost_PreviewMouseLeftButtonUp">
             <Grid.RenderTransform>
                 <TranslateTransform x:Name="FilmstripSlide" Y="150" />
             </Grid.RenderTransform>
-            <Grid x:Name="FilmstripPanel" Width="680" Height="72" VerticalAlignment="Bottom" Margin="0,0,0,18"
-                  ClipToBounds="False">
+            <Grid x:Name="FilmstripPanel" Width="680" Height="72" Background="#00000000"
+                  VerticalAlignment="Bottom" Margin="0,0,0,18" ClipToBounds="False">
                 <ListBox x:Name="FilmstripList" Background="Transparent" BorderThickness="0"
                          Height="64" VerticalAlignment="Bottom" ClipToBounds="False"
                          ScrollViewer.HorizontalScrollBarVisibility="Hidden"

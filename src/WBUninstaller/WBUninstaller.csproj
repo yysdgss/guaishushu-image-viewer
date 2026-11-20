@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>怪叔叔看图卸载</AssemblyName>
+    <AssemblyTitle>怪叔叔看图 卸载程序</AssemblyTitle>
+    <FileDescription>怪叔叔看图 卸载程序</FileDescription>
+    <Company>怪叔叔</Company>
+    <RootNamespace>WBUninstaller</RootNamespace>
+    <ApplicationIcon>..\WBImageViewer\Assets\app.ico</ApplicationIcon>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\WBImageViewer\Models\SupportedFormats.cs" Link="SupportedFormats.cs" />
+    <EmbeddedResource Include="..\WBImageViewer\Assets\app.ico" LogicalName="AppIcon.ico" />
+  </ItemGroup>
+
+</Project>
