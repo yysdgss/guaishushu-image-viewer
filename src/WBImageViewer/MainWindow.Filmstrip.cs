@@ -62,13 +62,39 @@ public partial class MainWindow
 
     private void RefreshFilmstrip()
     {
+        // Bind immediately so the strip layout appears without waiting for any decode.
+        if (!ReferenceEquals(FilmstripList.ItemsSource, _playlist))
+        {
+            FilmstripList.ItemsSource = _playlist;
+            _filmVisualStates.Clear();
+        }
+        else
+            FilmstripList.Items.Refresh();
+        UpdateFilmstripSelection();
+
+        // Thumbnail decoding used to run synchronously for every file here — with a folder
+        // of hundreds of photos that blocked the first paint for seconds. Schedule it as one
+        // coalesced background pass; a newer refresh cancels the previous one's work.
+        var generation = ++_thumbGeneration;
+        Dispatcher.BeginInvoke(new Action(() => GenerateThumbnails(generation)),
+            System.Windows.Threading.DispatcherPriority.Background);
+    }
+
+    private int _thumbGeneration;
+
+    private void GenerateThumbnails(int generation)
+    {
+        if (generation != _thumbGeneration) return;
+        var changed = false;
         foreach (var item in _playlist)
         {
+            if (generation != _thumbGeneration) return;
             if (item.Thumbnail != null) continue;
             if (string.Equals(System.IO.Path.GetExtension(item.Path), GjpgService.Extension, StringComparison.OrdinalIgnoreCase))
             {
                 item.Brush = new SolidColorBrush(Color.FromRgb(108, 182, 255));
-                item.Name += " · 工程";
+                if (!item.Name.EndsWith(" · 工程")) item.Name += " · 工程";
+                changed = true;
                 continue;
             }
             try
@@ -81,6 +107,7 @@ public partial class MainWindow
                 image.EndInit();
                 image.Freeze();
                 item.Thumbnail = image;
+                changed = true;
             }
             catch
             {
@@ -88,17 +115,11 @@ public partial class MainWindow
                 // ask Windows for a real page thumbnail before showing a plain tile.
                 item.Thumbnail = ShellPreviewService.TryLoad(item.Path, 256);
                 item.Brush = new SolidColorBrush(Color.FromRgb(140, 140, 150));
+                changed = true;
             }
         }
-        // Bind once to the live list; later refreshes only repaint existing containers.
-        if (!ReferenceEquals(FilmstripList.ItemsSource, _playlist))
-        {
-            FilmstripList.ItemsSource = _playlist;
-            _filmVisualStates.Clear();
-        }
-        else
+        if (changed && generation == _thumbGeneration)
             FilmstripList.Items.Refresh();
-        UpdateFilmstripSelection();
     }
 
     private int CurrentPlaylistIndex() => _playlist.FindIndex(p =>
@@ -183,16 +204,16 @@ public partial class MainWindow
 
     private (FrameworkElement Bubble, ScaleTransform Scale, TranslateTransform Shift, double EdgeOffset) NavParts(Border zone)
         => ReferenceEquals(zone, PrevZone)
-            ? (PrevBubble, PrevBubbleScale, PrevBubbleShift, -8d)
-            : (NextBubble, NextBubbleScale, NextBubbleShift, 8d);
+            ? (PrevBubble, PrevBubbleScale, PrevBubbleShift, -6d)
+            : (NextBubble, NextBubbleScale, NextBubbleShift, 6d);
 
     private void ApplyNavZoneVisual(Border zone, bool enabled, string tooltip)
     {
         zone.ToolTip = tooltip;
         zone.Cursor = enabled ? Cursors.Hand : Cursors.No;
         var (bubble, scale, shift, edge) = NavParts(zone);
-        var opacity = !enabled ? 0.02 : zone.IsMouseOver ? 0.85 : 0.05;
-        var scaleX = !enabled ? 0.18 : zone.IsMouseOver ? 1 : 0.35;
+        var opacity = !enabled ? 0.02 : zone.IsMouseOver ? 0.75 : 0.05;
+        var scaleX = !enabled ? 0.18 : zone.IsMouseOver ? 0.9 : 0.35;
         AnimateNavBubble(bubble, scale, shift, edge, opacity, scaleX, 190, false);
     }
 
@@ -229,7 +250,7 @@ public partial class MainWindow
         var enabled = ReferenceEquals(zone, PrevZone) ? _prevNavEnabled : _nextNavEnabled;
         var (bubble, scale, shift, edge) = NavParts(zone);
         AnimateNavBubble(bubble, scale, shift, edge,
-            enabled ? 0.85 : 0.18, enabled ? 1 : 0.5, 260, true);
+            enabled ? 0.75 : 0.18, enabled ? 0.9 : 0.5, 260, true);
     }
 
     private void NavZone_Leave(object sender, MouseEventArgs e)

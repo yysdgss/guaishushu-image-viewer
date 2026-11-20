@@ -19,9 +19,9 @@
 | 软件名称 | 怪叔叔看图 |
 | 产品常量 | `AppInfo.Name = "怪叔叔看图"` |
 | 程序集名 | `怪叔叔看图`（安装器：`怪叔叔看图安装程序`）|
-| 当前版本 | `4.5.4` |
+| 当前版本 | `4.5.5` |
 | 仓库 | `https://github.com/yysdgss/guaishushu-image-viewer` |
-| Release | `v4.5.4` 已发布（上一版 `v4.5.3`）：https://github.com/yysdgss/guaishushu-image-viewer/releases/tag/v4.5.4 |
+| Release | `v4.5.5` 待发布（上一版 `v4.5.4`）：https://github.com/yysdgss/guaishushu-image-viewer/releases/tag/v4.5.4 |
 | 许可 | MIT |
 | 目标框架 | `net10.0-windows10.0.19041.0`（PDF 渲染需要 Windows 10 19041 SDK API） |
 | UI 框架 | WPF |
@@ -3655,9 +3655,28 @@ RedrawAnnotations();
 - **需求**：Dock 经过两缩略图之间缝隙时效果断触；缺少摆放缩略图的平台且放大图被无形视图高度裁切；左右翻页凸起过于突兀、高度占比过小，需按参考红线改成贯穿全高的流畅弧线并加 ‹ / › 箭头。
 - **实现**：`HoveredFilmIndex` 增加兜底：光标不在任何视觉包围盒内（即处于缝隙）时，改用最近的稳定布局中心做 Voronoi 归属，行外才返回 -1，消除断触；抽出 `FilmLayoutCenter` 供悬停与 offset 共用。`MainWindow.xaml` 重建 Dock 容器：Host 高 150→250、Panel 72→170、ListBox 64→130 且底部留 50，滑入位移同步 150→250；新增 `DockPlatform`（接触阴影 + 厚度侧面 + 顶面高光三层渐变）作为仿三维景深平台，缩略图底部坐在顶面 +40~+76 区间；移除缩略图 `DropShadowEffect`（其渲染表面按布局尺寸分配会裁切放大图）。翻页区：`PrevZone/NextZone` 高 150→300、`PrevBubble/NextBubble` 132→288，曲线改为两段三次贝塞尔 `M0,0 C0,96 30,112 30,144 C30,176 0,192 0,288 Z`（左右镜像），两段在顶点切线同为垂直故无折角，上下贴边、中段平滑外扩；弧内居中加白色 ‹ / › Path；动画展开比例 0.25→1、边缘位移 4→8、常态/悬停透明度重调（R132）。
 
+### R133 翻页曲线再扁平、启动提速、空画布层级与罗盘触发/突出重构
+
+- **需求**：翻页弧线隆起仍突兀需再平缓；启动加载慢、窗口显示延迟；空画布提示盖住罗盘；罗盘内层触发区扩散（在第二层能触发里层、线触发跳最外层），且突出逻辑错误（当前层非选中项被一并降低、未聚焦当前操作）。
+- **实现**：
+  - **翻页曲线**：`MainWindow.xaml` 将弧线由峰值 30px 的急肩改为峰值 22px 的平滑月牙——控制点从 `C0,96 30,112` 改为 `C0,48 22,96`（左右镜像），贝塞尔在顶点切线连续、肩部过渡更长；`PrevBubble/NextBubble` 宽 46→22、边缘位移 8→6、悬停展开比例 1→0.9、透明度 0.85→0.75（R133）。
+  - **启动提速**：`App.OnStartup` 把文件关联注册表写入与快捷键冲突提示从同步阻塞改为 `Dispatcher.BeginInvoke(Background)` 延迟执行；`HotkeyConflictService.Check` 新增 `scanOwners` 开关，启动传入 false 跳过整盘 `.lnk` COM 扫描（元凶）；`RefreshFilmstrip` 改为先立即绑定空列表显示布局、再用 `_thumbGeneration` + `Dispatcher.BeginInvoke(Background)`  coalesce 后台解码缩略图，避免图片多时阻塞首帧（R133）。
+  - **空画布层级**：`CompassLayer` 增加 `Panel.ZIndex="20"`，使其显示在 `Hint` 空画布提示之上，罗盘打开时提示不再遮挡（R133）。
+  - **罗盘触发区**：`UpdateCompass` 废弃互相重叠的 `outerGrace`（20/70px）与引导线触发最外层逻辑；改用相邻环几何中点分界的严格环带（ring0 [30,72]、ring1 [72,112]、ring2 [112,152]、ring3 [152,206]，间隔 0 无重叠），且仅当 `pointerRing <= DeepestVisibleCompassRing()` 才触发——未展开的深层带不再误触发，引导线降为纯装饰不再选中（R133）。
+  - **罗盘突出逻辑**：`RebuildCompass` 按三档重构——当前层选中项 BOOSTED、同层其余 NORMAL；内层（ring<active）仅 breadcrumb 选中项 NORMAL、其余 DIM；未进入的下一层（ring>active）DIM（触发项保留可读）；移除废弃的 `_compassPreviewRing`/`_compassLineAngle`/`AngleDifference` 与 line-trigger 状态（R133）。
+
 ---
 
 ## 11. 版本变更记录
+
+### 4.5.5（2026-11-20）
+
+- 翻页弧线峰值 30→22px、控制点前移，隆起更平缓流畅（R133）。
+- 启动提速：文件关联/快捷键扫描延迟到窗口显示后，缩略图后台 coalesce 解码，首帧更快（R133）。
+- 罗盘图层 `Panel.ZIndex=20`，空画布提示不再遮挡罗盘（R133）。
+- 罗盘触发区改为严格不重叠环带 + 仅触发已展开层，引导线不再误触发最外层（R133）。
+- 罗盘突出逻辑按"当前层聚焦、无关层降低"三档重构（R133）。
+- 单文件与安装包重新封装，版本号统一为 4.5.5。
 
 ### 4.5.4（2026-11-20）
 

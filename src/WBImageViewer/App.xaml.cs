@@ -67,20 +67,23 @@ public partial class App : Application
             return;
         }
 
-        try
-        {
-            FileAssociationService.Apply(Settings);
-        }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"Association failed: {ex.Message}");
-        }
-
         Hotkeys = new HotkeyHost();
         Hotkeys.Pressed += OnGlobalHotkey;
         Hotkeys.Reconfigure(Settings);
 
         var files = e.Args.Where(ImageFile.IsSupported).ToArray();
+
+        // Startup speed: the registry writes (file associations) and the .lnk hotkey-owner
+        // scan used to run synchronously before any window existed, delaying first paint for
+        // seconds. Both are non-visual housekeeping — defer them until the window has shown
+        // and the UI thread is idle so the picture window appears immediately.
+        Current.Dispatcher.BeginInvoke(new Action(() =>
+        {
+            try { FileAssociationService.Apply(Settings); }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"Association failed: {ex.Message}"); }
+            if (Hotkeys.FailedRegistrations.Count > 0)
+                NotifyHotkeyFailures(scanOwners: false);
+        }), System.Windows.Threading.DispatcherPriority.Background);
 
         if (Settings.SingleWindow && ImagePipe.TrySend(files))
         {
@@ -92,7 +95,6 @@ public partial class App : Application
             ImagePipe.Start(OpenFiles);
 
         SetupTray();
-        NotifyHotkeyFailures();
         if (files.Length == 1 && string.Equals(System.IO.Path.GetExtension(files[0]), GjpgService.Extension, StringComparison.OrdinalIgnoreCase))
             OpenDocument(files[0]);
         else
@@ -113,7 +115,7 @@ public partial class App : Application
         base.OnExit(e);
     }
 
-    private void NotifyHotkeyFailures()
+    private void NotifyHotkeyFailures(bool scanOwners = true)
     {
         var failed = Hotkeys.FailedRegistrations;
         if (failed.Count == 0 || _tray is null) return;
@@ -122,7 +124,7 @@ public partial class App : Application
         var lines = failed.Select(f =>
         {
             var spec = f[(f.IndexOf(':') + 1)..].Trim();
-            var info = HotkeyConflictService.Check(spec, Array.Empty<string>(), ownedByUs: false);
+            var info = HotkeyConflictService.Check(spec, Array.Empty<string>(), ownedByUs: false, scanOwners: scanOwners);
             return info.State == HotkeyConflictState.Occupied && info.Suspects.Count > 0
                 ? $"{spec} → {string.Join("、", info.Suspects)}"
                 : $"{spec} → {info.Message}";

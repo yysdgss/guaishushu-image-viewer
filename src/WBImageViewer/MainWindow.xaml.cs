@@ -115,8 +115,6 @@ public partial class MainWindow : Window
     private int[] _compassSelection = { -1, -1, -1, -1 };
     private enum CompassTrigger { None, Pointer, Line }
     private CompassTrigger[] _compassTrigger = { CompassTrigger.None, CompassTrigger.None, CompassTrigger.None, CompassTrigger.None };
-    private int _compassPreviewRing = -1;
-    private double _compassLineAngle = double.NaN;
     private Line? _compassGuideHalo;
     private Line? _compassGuideFlow;
     private Border? _compassTooltip;

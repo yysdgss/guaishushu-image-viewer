@@ -134,7 +134,7 @@
              hit-test transparent so the viewport keeps receiving pointer input. -->
         <Canvas x:Name="AnnotationLayer" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
                 ClipToBounds="True" IsHitTestVisible="False" />
-        <Canvas x:Name="CompassLayer" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+        <Canvas x:Name="CompassLayer" Panel.ZIndex="20" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
                 ClipToBounds="True" IsHitTestVisible="False" />
 
         <Border x:Name="Hint" HorizontalAlignment="Center" VerticalAlignment="Center"
@@ -315,49 +315,49 @@
         <Border x:Name="PrevZone" Width="72" Height="300" HorizontalAlignment="Left" VerticalAlignment="Center"
                 Background="#00000000" Cursor="Hand" ToolTip="上一张"
                 MouseEnter="NavZone_Enter" MouseLeave="NavZone_Leave" MouseLeftButtonUp="PrevZone_Click">
-            <Grid x:Name="PrevBubble" Width="46" Height="288" HorizontalAlignment="Left" VerticalAlignment="Center"
+            <Grid x:Name="PrevBubble" Width="22" Height="288" HorizontalAlignment="Left" VerticalAlignment="Center"
                   Opacity="0" IsHitTestVisible="False">
                 <Grid.RenderTransform>
                     <TransformGroup>
                         <ScaleTransform x:Name="PrevBubbleScale" ScaleX="0.3" ScaleY="1"
                                         CenterX="0" CenterY="144" />
-                        <TranslateTransform x:Name="PrevBubbleShift" X="-8" />
+                        <TranslateTransform x:Name="PrevBubbleShift" X="-6" />
                     </TransformGroup>
                 </Grid.RenderTransform>
                 <Path Stretch="Fill" Fill="{StaticResource EdgeBulgeBrush}"
-                      Data="M 0,0 C 0,96 30,112 30,144 C 30,176 0,192 0,288 Z"
+                      Data="M 0,0 C 0,48 22,96 22,144 C 22,192 0,240 0,288 Z"
                       IsHitTestVisible="False" />
                 <Path Stretch="Fill" Fill="Transparent" Stroke="{StaticResource EdgeHighlightBrush}"
                       StrokeThickness="1.2" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
-                      Data="M 0,4 C 0,96 30,112 30,144 C 30,176 0,192 0,284"
+                      Data="M 0,3 C 0,48 20,96 20,144 C 20,192 0,240 0,285"
                       IsHitTestVisible="False" />
                 <Path Stretch="None" Stroke="#D6FFFFFF" StrokeThickness="1.6"
                       StrokeStartLineCap="Round" StrokeEndLineCap="Round"
-                      Data="M 25,136 L 16,144 L 25,152" IsHitTestVisible="False" />
+                      Data="M 18,137 L 10,144 L 18,151" IsHitTestVisible="False" />
             </Grid>
         </Border>
         <Border x:Name="NextZone" Width="72" Height="300" HorizontalAlignment="Right" VerticalAlignment="Center"
                 Background="#00000000" Cursor="Hand" ToolTip="下一张"
                 MouseEnter="NavZone_Enter" MouseLeave="NavZone_Leave" MouseLeftButtonUp="NextZone_Click">
-            <Grid x:Name="NextBubble" Width="46" Height="288" HorizontalAlignment="Right" VerticalAlignment="Center"
+            <Grid x:Name="NextBubble" Width="22" Height="288" HorizontalAlignment="Right" VerticalAlignment="Center"
                   Opacity="0" IsHitTestVisible="False">
                 <Grid.RenderTransform>
                     <TransformGroup>
                         <ScaleTransform x:Name="NextBubbleScale" ScaleX="0.3" ScaleY="1"
-                                        CenterX="46" CenterY="144" />
-                        <TranslateTransform x:Name="NextBubbleShift" X="8" />
+                                        CenterX="22" CenterY="144" />
+                        <TranslateTransform x:Name="NextBubbleShift" X="6" />
                     </TransformGroup>
                 </Grid.RenderTransform>
                 <Path Stretch="Fill" Fill="{StaticResource EdgeBulgeRightBrush}"
-                      Data="M 46,0 C 46,96 16,112 16,144 C 16,176 46,192 46,288 Z"
+                      Data="M 22,0 C 22,48 0,96 0,144 C 0,192 22,240 22,288 Z"
                       IsHitTestVisible="False" />
                 <Path Stretch="Fill" Fill="Transparent" Stroke="{StaticResource EdgeHighlightBrush}"
                       StrokeThickness="1.2" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
-                      Data="M 46,4 C 46,96 16,112 16,144 C 16,176 46,192 46,284"
+                      Data="M 22,3 C 22,48 2,96 2,144 C 2,192 22,240 22,285"
                       IsHitTestVisible="False" />
                 <Path Stretch="None" Stroke="#D6FFFFFF" StrokeThickness="1.6"
                       StrokeStartLineCap="Round" StrokeEndLineCap="Round"
-                      Data="M 21,136 L 30,144 L 21,152" IsHitTestVisible="False" />
+                      Data="M 4,137 L 12,144 L 4,151" IsHitTestVisible="False" />
             </Grid>
         </Border>
 

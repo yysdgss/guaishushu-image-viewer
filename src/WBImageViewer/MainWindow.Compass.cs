@@ -331,12 +331,13 @@ public partial class MainWindow
             catch { /* window may be closing */ }
         }
 
-        // The guide line may select an outer ring, but a group selected by the line is
-        // preview-only: expanding it must never lead to an accidental command.
+        // Selection is pointer-authoritative: commit the leaf that is currently
+        // highlighted on the active ring. The decorative guide line never selects,
+        // so an expanded group (not yet entered) is never committed by accident.
         var ring = _compassActiveRing;
         CompassNode? pending = null;
         if (ring >= 0 && ring < _compassSelection.Length &&
-            ring != _compassPreviewRing && _compassTrigger[ring] != CompassTrigger.None)
+            _compassTrigger[ring] != CompassTrigger.None)
         {
             var index = _compassSelection[ring];
             if (index >= 0)
@@ -364,8 +365,6 @@ public partial class MainWindow
         _compassSelection = new int[CompassRingCount];
         for (var i = 0; i < _compassSelection.Length; i++) _compassSelection[i] = -1;
         _compassTrigger = new CompassTrigger[CompassRingCount];
-        _compassPreviewRing = -1;
-        _compassLineAngle = double.NaN;
         _compassOpen = true;
         _draftPointer = imagePoint;
 
@@ -417,9 +416,11 @@ public partial class MainWindow
     }
 
     /// <summary>
-    /// Rebuild sectors for the current active path. Three visual states:
-    /// idle (no selection -> uniform), hovered ring (active sector brightened, others dimmed),
-    /// and sticky ancestors (breadcrumb path kept but dimmed).
+    /// Rebuild sectors for the current active path. Contrast is focused on the layer under
+    /// the pointer: the current layer keeps its non-selected items at normal contrast and
+    /// boosts only the selected one; ancestor layers dim everything except the breadcrumb
+    /// (their selected item); layers not yet entered are dimmed. This lowers irrelevant
+    /// menus so the item being operated on stays unmistakable.
     /// </summary>
     private void RebuildCompass()
     {
@@ -449,27 +450,49 @@ public partial class MainWindow
         AddCompassText(hubLabel, _compassOrigin.X - 32, _compassOrigin.Y - 11, 64, 22,
             13 * CompassScale, Brushes.White, FontWeights.SemiBold);
 
+        var activeRing = _compassActiveRing;
         for (var ring = 0; ring < CompassRingCount; ring++)
         {
             if (ring > 0 && _compassSelection[ring - 1] < 0) break;
             var nodes = CompassChildrenAt(ring);
             if (nodes.Count == 0) break;
             var span = 360.0 / nodes.Count;
-            var ringHasSelection = _compassSelection[ring] >= 0;
-            var previewRing = ring == _compassPreviewRing;
             for (var i = 0; i < nodes.Count; i++)
             {
                 var node = nodes[i];
                 var start = i * span - 90 + 1.2;
                 var end = (i + 1) * span - 90 - 1.2;
                 var isSelected = _compassSelection[ring] == i;
-                var isPointer = isSelected && _compassTrigger[ring] == CompassTrigger.Pointer;
-                var isLineGroup = isSelected && _compassTrigger[ring] == CompassTrigger.Line && node.IsGroup;
-                var isBreadcrumb = isSelected && ring < _compassActiveRing && !isLineGroup;
-                var isActive = isPointer || isBreadcrumb;
-                var dim = ringHasSelection && !isSelected;
+
+                // Three contrast tiers centred on the pointer's current layer:
+                //  • current layer (ring == active): siblings NORMAL, selected BOOSTED;
+                //  • ancestor layers (ring < active): only the breadcrumb stays normal,
+                //    every unselected sector is DIMMED;
+                //  • not-yet-entered layers (ring > active): DIMMED while merely triggered.
+                // This is the "lower irrelevant menus, spotlight the current choice" rule.
+                bool isActive, dim, preview;
+                if (activeRing < 0)
+                {
+                    // Nothing engaged yet (pointer in hub): uniform normal contrast.
+                    isActive = false; dim = false; preview = false;
+                }
+                else if (ring == activeRing)
+                {
+                    isActive = isSelected; dim = false; preview = false;
+                }
+                else if (ring < activeRing)
+                {
+                    isActive = false; dim = !isSelected; preview = false;
+                }
+                else // ring > activeRing: triggered/open but pointer has not entered it
+                {
+                    isActive = false;
+                    dim = !isSelected;   // the item that opened this layer stays readable
+                    preview = !isSelected;
+                }
+
                 var path = CreateSectorPath(_compassOrigin, CompassInner(ring), CompassOuter(ring),
-                    start, end, node.Accent, isActive, dim, previewRing || isLineGroup);
+                    start, end, node.Accent, isActive, dim, preview);
                 CompassLayer.Children.Add(path);
                 _compassVisuals.Add(path);
 
@@ -479,7 +502,7 @@ public partial class MainWindow
                 // Larger glyphs + font scaling; labels get a crisp, slightly larger face.
                 var glyphSize = (ring == 0 ? 18 : 16) * CompassScale;
                 var labelSize = 12 * CompassScale;
-                var textAlpha = isActive ? (byte)255 : dim ? (byte)110 : previewRing ? (byte)150 : (byte)245;
+                var textAlpha = isActive ? (byte)255 : dim ? (byte)112 : preview ? (byte)150 : (byte)245;
                 var textBrush = new SolidColorBrush(Color.FromArgb(textAlpha, 242, 247, 255));
                 AddCompassText(node.Glyph, labelPoint.X - 20, labelPoint.Y - 21, 40, 24,
                     glyphSize, textBrush, FontWeights.SemiBold);
@@ -611,9 +634,7 @@ public partial class MainWindow
             _compassSelection[r] = -1;
             _compassTrigger[r] = CompassTrigger.None;
         }
-        _compassPreviewRing = -1;
         _compassActiveRing = -1;
-        _compassLineAngle = double.NaN;
     }
 
     private void InvalidateDeeperCompassRings(int ring)
@@ -623,7 +644,6 @@ public partial class MainWindow
             _compassSelection[r] = -1;
             _compassTrigger[r] = CompassTrigger.None;
         }
-        _compassPreviewRing = -1;
     }
 
     private int DeepestVisibleCompassRing()
@@ -637,6 +657,13 @@ public partial class MainWindow
         return deepest;
     }
 
+    /// <summary>
+    /// Pointer-only selection with exact, non-overlapping ring bands. Each ring's band is
+    /// bounded by the midpoints to its neighbours, so a trigger area never spills past the
+    /// visible sector — a pointer on ring 1 can no longer fire ring 0. A ring is only
+    /// triggerable once every ancestor is selected and populated; the guide line stays
+    /// decorative and never fires a menu the pointer is not actually on.
+    /// </summary>
     private void UpdateCompass(Point pointer)
     {
         if (!_compassOpen) return;
@@ -656,30 +683,40 @@ public partial class MainWindow
             return;
         }
 
+        // Exact ring bands. The boundary with the previous ring is the midpoint between
+        // outer(r-1) and inner(r); the boundary with the next is the midpoint between
+        // outer(r) and inner(r+1). Bands touch but never overlap. Only the outermost
+        // keeps a small outward tolerance so a fast sweep still grips its sectors —
+        // this replaces the old 20/70px graces that let an inner ring swallow the next.
         var pointerRing = -1;
         for (var r = 0; r < CompassRingCount; r++)
         {
-            // A fast sweep can land well past a ring between two poll frames. Give every
-            // ring a generous outward tolerance so the pointer (and the line) keeps a firm
-            // grip on the sector it is crossing instead of dropping into the line branch.
-            var outerGrace = r == CompassRingCount - 1 ? 70 * CompassScale : 20 * CompassScale;
-            if (distance >= CompassInner(r) - 5 * CompassScale && distance <= CompassOuter(r) + outerGrace)
-            { pointerRing = r; break; }
+            var innerEdge = r == 0
+                ? CompassInner(0) - 4
+                : (CompassOuter(r - 1) + CompassInner(r)) * 0.5;
+            var outerEdge = r == CompassRingCount - 1
+                ? CompassOuter(r) + 16 * CompassScale
+                : (CompassOuter(r) + CompassInner(r + 1)) * 0.5;
+            if (distance >= innerEdge && distance < outerEdge)
+            {
+                pointerRing = r;
+                break;
+            }
         }
 
-        if (pointerRing >= 0)
+        // A band can only be triggered when it is actually live (every ancestor selected
+        // and populated). Sitting over a dormant deeper band must not open a menu the user
+        // never navigated into, and must not be re-routed to the outermost ring either.
+        if (pointerRing >= 0 && pointerRing <= DeepestVisibleCompassRing())
         {
-            // Real pointer activation. Clear any line-driven preview and act normally.
-            _compassLineAngle = double.NaN;
-            _compassPreviewRing = -1;
-            for (var r = 0; r < _compassTrigger.Length; r++)
-                if (_compassTrigger[r] == CompassTrigger.Line) _compassTrigger[r] = CompassTrigger.None;
+            // Returning to an inner ring collapses everything beyond it.
             if (_compassActiveRing >= 0 && pointerRing < _compassActiveRing)
             {
                 InvalidateDeeperCompassRings(pointerRing);
                 changed = true;
             }
             _compassActiveRing = pointerRing;
+
             var angle = SectorAngle(pointer);
             var nodes = CompassChildrenAt(pointerRing);
             if (nodes.Count > 0)
@@ -695,63 +732,12 @@ public partial class MainWindow
                 _compassTrigger[pointerRing] = CompassTrigger.Pointer;
             }
         }
-        else
-        {
-            // Pointer has left the menu: the guide line may still trigger the deepest
-            // visible ring. Angular hysteresis keeps a wobbly hand from flipping sectors
-            // back and forth (which used to look like stutter / lost contact).
-            var ring = _compassActiveRing;
-            if (ring < 0 || ring >= CompassRingCount || CompassChildrenAt(ring).Count == 0)
-                ring = DeepestVisibleCompassRing();
-            // Once the outermost menu has been opened, the guide line must be able to
-            // re-trigger it even if the cursor jumped far outside the compass.
-            var outermost = CompassRingCount - 1;
-            if (_compassSelection[outermost] >= 0 && CompassChildrenAt(outermost).Count > 0)
-                ring = outermost;
-            var nodes = CompassChildrenAt(ring);
-            if (nodes.Count > 0)
-            {
-                var midRadius = (CompassInner(ring) + CompassOuter(ring)) / 2;
-                var sample = distance > midRadius
-                    ? new Point(_compassOrigin.X + dx * (midRadius / distance),
-                                _compassOrigin.Y + dy * (midRadius / distance))
-                    : pointer;
-                var angle = SectorAngle(sample);
-                var span = 360.0 / nodes.Count;
-                var idx = _compassSelection[ring];
-                // Track the line continuously: recompute the sector on every poll. Keeping the
-                // old hysteresis gate here is what caused fast sweeps to "lose" the outer menu
-                // (the small angle step never exceeded the threshold, so no update happened).
-                var candidate = (int)(angle / span) % nodes.Count;
-                if (idx != candidate)
-                {
-                    _compassSelection[ring] = candidate;
-                    InvalidateDeeperCompassRings(ring);
-                    idx = candidate;
-                    changed = true;
-                }
-                _compassLineAngle = angle;
-                changed |= _compassTrigger[ring] != CompassTrigger.Line;
-                _compassTrigger[ring] = CompassTrigger.Line;
-                _compassActiveRing = ring;
-
-                var node = nodes[idx];
-                var preview = ring + 1 < CompassRingCount && node.IsGroup ? ring + 1 : -1;
-                if (_compassPreviewRing != preview) { _compassPreviewRing = preview; changed = true; }
-            }
-        }
+        // Pointer outside every live band: keep the current selection. The line drawn
+        // from hub to pointer is decorative only — it never re-triggers the outermost ring.
 
         if (changed) RebuildCompass();
         UpdateCompassGuide();
         UpdateCompassTooltip();
-    }
-
-    private static double AngleDifference(double a, double b)
-    {
-        var diff = (a - b) % 360;
-        if (diff > 180) diff -= 360;
-        if (diff < -180) diff += 360;
-        return diff;
     }
 
     private double SectorAngle(Point point)
@@ -818,8 +804,6 @@ public partial class MainWindow
         _compassActiveRing = -1;
         for (var i = 0; i < _compassSelection.Length; i++) _compassSelection[i] = -1;
         for (var i = 0; i < _compassTrigger.Length; i++) _compassTrigger[i] = CompassTrigger.None;
-        _compassPreviewRing = -1;
-        _compassLineAngle = double.NaN;
         _compassGuideHalo = null;
         _compassGuideFlow = null;
         _compassTooltip = null;

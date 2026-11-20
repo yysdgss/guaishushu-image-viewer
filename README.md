@@ -2,7 +2,7 @@
 
 一款面向 Windows 11 的极简无边框参考图查看器：图片置顶、滚轮以鼠标为中心缩放、抓取手势移动窗口，并内置亮度/对比度/饱和度/去噪/锐化调整。
 
-- 当前版本：**4.5.4**
+- 当前版本：**4.5.5**
 - 技术栈：**WPF / .NET 10（Windows）**
 - 许可：**MIT 免费开源**
 
@@ -86,13 +86,13 @@ Windows 缩略图预览：SVG/SVGZ、EMF/WMF、PDF、PSD/AI/EPS，以及 XMind(`
 
 ## 下载
 
-- [单文件运行包（v4.5.4）](https://github.com/yysdgss/guaishushu-image-viewer/releases/download/v4.5.4/Viewer-v4.5.4.exe)：页面显示名“怪叔叔看图 v4.5.4 单文件运行包”
-- [Windows 安装程序（推荐，v4.5.4）](https://github.com/yysdgss/guaishushu-image-viewer/releases/download/v4.5.4/Viewer-v4.5.4-Setup.exe)：页面显示名“怪叔叔看图 v4.5.4 Windows 安装程序”
+- [单文件运行包（v4.5.5）](https://github.com/yysdgss/guaishushu-image-viewer/releases/download/v4.5.5/Viewer-v4.5.5.exe)：页面显示名“怪叔叔看图 v4.5.5 单文件运行包”
+- [Windows 安装程序（推荐，v4.5.5）](https://github.com/yysdgss/guaishushu-image-viewer/releases/download/v4.5.5/Viewer-v4.5.5-Setup.exe)：页面显示名“怪叔叔看图 v4.5.5 Windows 安装程序”
 
-> 本地封装产物为纯中文名 `怪叔叔看图-v4.5.4.exe` / `怪叔叔看图-v4.5.4-Setup.exe`；GitHub Release 上传接口不接受中文资产文件名，因此线上资产使用 `Viewer-` 前缀，中文名称显示在资产 label 中。
+> 本地封装产物为纯中文名 `怪叔叔看图-v4.5.5.exe` / `怪叔叔看图-v4.5.5-Setup.exe`；GitHub Release 上传接口不接受中文资产文件名，因此线上资产使用 `Viewer-` 前缀，中文名称显示在资产 label 中。
 - 严谨开发档案：[DEVELOPMENT.md](DEVELOPMENT.md)（每项需求均附实现逻辑、方式与当前代码片段）
 
-> 运行 `怪叔叔看图-v4.5.4-Setup.exe` 会进入常规 Windows 安装向导：欢迎 → 许可协议 → 目标位置（自动校验）→ 安装进度（实时日志与错误详情）→ 完成。它把主程序与独立卸载程序安装到所选目录，创建桌面/开始菜单快捷方式，并在开始菜单程序组提供“卸载 怪叔叔看图”入口；同时注册文件关联候选与图片右键"用怪叔叔看图打开"菜单。程序会尝试通过系统 UserChoice 哈希静默设为默认打开程序；该机制为 Windows 未公开算法，个别格式可能被系统保护而跳过，此时安装仍会成功，日志与完成页会明确列出未能设为默认的格式，可在"打开方式"中手动选择，不影响程序安装与使用。
+> 运行 `怪叔叔看图-v4.5.5-Setup.exe` 会进入常规 Windows 安装向导：欢迎 → 许可协议 → 目标位置（自动校验）→ 安装进度（实时日志与错误详情）→ 完成。它把主程序与独立卸载程序安装到所选目录，创建桌面/开始菜单快捷方式，并在开始菜单程序组提供“卸载 怪叔叔看图”入口；同时注册文件关联候选与图片右键"用怪叔叔看图打开"菜单。程序会尝试通过系统 UserChoice 哈希静默设为默认打开程序；该机制为 Windows 未公开算法，个别格式可能被系统保护而跳过，此时安装仍会成功，日志与完成页会明确列出未能设为默认的格式，可在"打开方式"中手动选择，不影响程序安装与使用。
 
 ## 从源码构建
 

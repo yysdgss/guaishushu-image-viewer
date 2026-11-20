@@ -57,9 +57,11 @@ internal static class HotkeyConflictService
     /// <summary>
     /// Probe one combination. <paramref name="ownedByUs"/> is true when this exact combo is one
     /// of our own currently registered hotkeys, in which case registration success is expected
-    /// and no system probe is necessary.
+    /// and no system probe is necessary. <paramref name="scanOwners"/> controls the expensive
+    /// Start Menu / Desktop .lnk COM scan; startup passes false to keep window display instant.
     /// </summary>
-    public static HotkeyConflictInfo Check(string spec, IReadOnlyList<string> otherSpecs, bool ownedByUs)
+    public static HotkeyConflictInfo Check(string spec, IReadOnlyList<string> otherSpecs, bool ownedByUs,
+        bool scanOwners = true)
     {
         if (!HotkeySpec.TryParse(spec, out var modifiers, out var vk))
             return new(spec, HotkeyConflictState.Invalid, "快捷键格式无效", Array.Empty<string>());
@@ -83,7 +85,7 @@ internal static class HotkeyConflictService
             var state = ProbeSystem(modifiers, vk);
             if (state == HotkeyConflictState.Occupied)
             {
-                var suspects = FindShortcutOwners(spec);
+                var suspects = scanOwners ? FindShortcutOwners(spec) : new List<string>();
                 var message = suspects.Count == 0
                     ? "该组合已被其他程序占用（Windows 不公开占用者名称，请逐一排查常驻软件）"
                     : "该组合已被其他程序占用，疑似：" + string.Join("、", suspects);
