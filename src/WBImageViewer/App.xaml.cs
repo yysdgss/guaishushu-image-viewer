@@ -164,7 +164,10 @@ public partial class App : Application
         (Current as App)?.OpenFiles(new[] { path });
     }
 
-    /// <summary>Show a captured bitmap in a new, topmost pinned viewer window.</summary>
+    /// <summary>
+    /// Show a captured bitmap in a NEW topmost pinned window. The screenshot is a separate
+    /// desktop artifact; it must never replace the picture the user was editing.
+    /// </summary>
     public static void OpenBitmap(System.Windows.Media.Imaging.BitmapSource bitmap, string title)
     {
         var window = new MainWindow();

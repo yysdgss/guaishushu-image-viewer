@@ -74,6 +74,13 @@ public partial class MainWindow : Window
     private string _currentImagePath = string.Empty;
     private string _currentProjectName = string.Empty;
 
+    // PDF reading state. Pages are rendered on demand and cached like image files.
+    private Windows.Data.Pdf.PdfDocument? _pdfDocument;
+    private string _pdfPath = string.Empty;
+    private int _pdfPageIndex;
+    private int _pdfPageCount;
+    private int _pdfRequestVersion;
+
     // Element selection & editing (line endpoints, circle bounds, move, delete).
     private enum ElementKind { None, Stroke, Fill, Text }
     private ElementKind _selectedKind;
@@ -128,6 +135,18 @@ public partial class MainWindow : Window
     private bool _filmstripExpanded;
     private bool _prevNavEnabled = true;
     private bool _nextNavEnabled = true;
+    private double _filmPointerX = double.NaN;
+    private bool _filmRenderingHooked;
+    private readonly Dictionary<ListBoxItem, FilmVisualState> _filmVisualStates = new();
+    private readonly Dictionary<ListBoxItem, double> _filmFlatCenters = new();
+
+    private sealed class FilmVisualState
+    {
+        public double Scale = 0.85;
+        public double ScaleVel;
+        public double OffsetX;
+        public double OffsetY;
+    }
 
     // Bottom filmstrip / playlist. A dropped batch takes precedence over the directory list.
     private sealed class FilmItem
@@ -166,6 +185,11 @@ public partial class MainWindow : Window
         {
             _filmstripLeaveTimer.Stop();
             if (!FilmstripHost.IsMouseOver && !FilmstripBarHit.IsMouseOver) AnimateFilmstrip(false);
+        };
+        Closed += (_, _) =>
+        {
+            _filmstripLeaveTimer.Stop();
+            StopFilmRendering();
         };
         UpdatePinState();
         ApplyVisualSettings(App.Settings);
@@ -253,6 +277,7 @@ public partial class MainWindow : Window
     /// <summary>Load a screenshot bitmap captured from the screen into this window.</summary>
     public void ShowCaptured(System.Windows.Media.Imaging.BitmapSource bitmap, string title)
     {
+        ClosePdfDocument();
         var source = bitmap.Format == PixelFormats.Bgra32
             ? bitmap
             : new FormatConvertedBitmap(bitmap, PixelFormats.Bgra32, null, 0);
@@ -283,6 +308,12 @@ public partial class MainWindow : Window
 
     public void LoadImage(string path)
     {
+        if (PdfService.IsPdf(path))
+        {
+            _ = LoadPdfAsync(path, 0);
+            return;
+        }
+        ClosePdfDocument();
         _currentImagePath = path;
         _currentProjectName = System.IO.Path.GetFileName(path);
         try
@@ -292,29 +323,10 @@ public partial class MainWindow : Window
             var source = DecodeImage(path)
                 ?? throw new InvalidOperationException("系统无法解码该格式，且 Windows 未提供可用缩略图。");
 
-            _pixelWidth = source.PixelWidth;
-            _pixelHeight = source.PixelHeight;
-            _sourcePixels = new int[_pixelWidth * _pixelHeight];
-            source.CopyPixels(_sourcePixels, _pixelWidth * 4, 0);
-
-            _displayPixels = new int[_sourcePixels.Length];
-            _display = new WriteableBitmap(_pixelWidth, _pixelHeight, 96, 96, PixelFormats.Bgra32, null);
-            _zoom = 1;
-            _offsetX = _offsetY = 0;
-            _annotations.Clear();
-            AnnotationLayer.Children.Clear();
-            ClearDraftVisual();
-
             _adjustments = App.Settings.AutoOptimize
                 ? ImageAdjustments.SmartPreset()
                 : (App.Settings.Adjustments ?? new ImageAdjustments()).Clone();
-            UpdateAdjustmentControls();
-            ApplyAdjustments();
-
-            ImageView.Source = _display;
-            Hint.Visibility = Visibility.Collapsed;
-            Title = $"{AppInfo.Name} - {System.IO.Path.GetFileName(path)}";
-            if (IsLoaded) FitImageToWindow(); else ApplyImagePosition();
+            ApplySource(source, path, System.IO.Path.GetFileName(path));
             SyncPlaylistForCurrentImage();
         }
         catch (Exception ex)
@@ -322,6 +334,125 @@ public partial class MainWindow : Window
             MessageBox.Show($"无法打开图片：{ex.Message}", AppInfo.Name,
                 MessageBoxButton.OK, MessageBoxImage.Warning);
         }
+    }
+
+    /// <summary>Install a decoded bitmap as the visible image and reset page state.</summary>
+    private void ApplySource(BitmapSource source, string path, string title)
+    {
+        _pixelWidth = source.PixelWidth;
+        _pixelHeight = source.PixelHeight;
+        _sourcePixels = new int[_pixelWidth * _pixelHeight];
+        source.CopyPixels(_sourcePixels, _pixelWidth * 4, 0);
+
+        _displayPixels = new int[_sourcePixels.Length];
+        _display = new WriteableBitmap(_pixelWidth, _pixelHeight, 96, 96, PixelFormats.Bgra32, null);
+        _zoom = 1;
+        _offsetX = _offsetY = 0;
+        _annotations.Clear();
+        AnnotationLayer.Children.Clear();
+        ClearDraftVisual();
+
+        UpdateAdjustmentControls();
+        ApplyAdjustments();
+
+        ImageView.Source = _display;
+        Hint.Visibility = Visibility.Collapsed;
+        Title = $"{AppInfo.Name} - {title}";
+        _currentImagePath = path;
+        _currentProjectName = title;
+        if (IsLoaded) FitImageToWindow(); else ApplyImagePosition();
+    }
+
+    private void ClosePdfDocument()
+    {
+        _pdfRequestVersion++;
+        if (_pdfDocument != null)
+        {
+            _pdfDocument = null;
+            _pdfDocument = null;
+        }
+        _pdfPath = string.Empty;
+        _pdfPageCount = 0;
+        _pdfPageIndex = 0;
+    }
+
+    private static string PdfPageCacheKey(string path, int page) => $"{path}#pdfpage#{page}";
+
+    private static BitmapSource? CachedPage(string key)
+    {
+        lock (ImageCacheLock)
+            return ImageDecodeCache.TryGetValue(key, out var cached) ? cached : null;
+    }
+
+    private static void RememberPage(string key, BitmapSource source)
+    {
+        lock (ImageCacheLock)
+        {
+            ImageCacheOrder.Remove(key);
+            ImageDecodeCache[key] = source;
+            ImageCacheOrder.Add(key);
+            while (ImageCacheOrder.Count > ImageCacheLimit)
+            {
+                var old = ImageCacheOrder[0];
+                ImageCacheOrder.RemoveAt(0);
+                ImageDecodeCache.Remove(old);
+            }
+        }
+    }
+
+    private async Task LoadPdfAsync(string path, int page)
+    {
+        var request = ++_pdfRequestVersion;
+        _currentImagePath = path;
+        _currentProjectName = System.IO.Path.GetFileName(path);
+
+        try
+        {
+            if (!string.Equals(_pdfPath, path, StringComparison.OrdinalIgnoreCase))
+            {
+                _pdfDocument = null;
+                var document = await PdfService.OpenAsync(path).ConfigureAwait(true);
+                if (request != _pdfRequestVersion) return;
+                _pdfDocument = document;
+                _pdfPath = path;
+                _pdfPageCount = (int)document.PageCount;
+            }
+            if (_pdfPageCount < 1) throw new InvalidOperationException("PDF 没有可显示的页面。");
+            page = Math.Clamp(page, 0, _pdfPageCount - 1);
+            _pdfPageIndex = page;
+
+            var key = PdfPageCacheKey(path, page);
+            var source = CachedPage(key);
+            if (source == null)
+            {
+                source = await PdfService.RenderPageAsync(_pdfDocument!, page).ConfigureAwait(true);
+                if (source != null) RememberPage(key, source);
+            }
+            if (request != _pdfRequestVersion || source == null) return;
+
+            _adjustments = new ImageAdjustments();
+            ApplySource(source, path, $"{System.IO.Path.GetFileName(path)}（第 {page + 1}/{_pdfPageCount} 页）");
+            SyncPlaylistForCurrentImage();
+
+            if (page + 1 < _pdfPageCount && CachedPage(PdfPageCacheKey(path, page + 1)) == null)
+                _ = PrefetchPdfPageAsync(_pdfDocument!, path, page + 1);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"无法打开 PDF：{ex.Message}", AppInfo.Name,
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
+    private static async Task PrefetchPdfPageAsync(Windows.Data.Pdf.PdfDocument document, string path, int page)
+    {
+        try
+        {
+            if (CachedPage(PdfPageCacheKey(path, page)) != null) return;
+            var bitmap = await PdfService.RenderPageAsync(document, page, 1800).ConfigureAwait(true);
+            if (bitmap != null) RememberPage(PdfPageCacheKey(path, page), bitmap);
+        }
+        catch { /* prefetch is best effort; navigation still renders on demand */ }
     }
 
     /// <summary>

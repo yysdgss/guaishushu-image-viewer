@@ -800,6 +800,7 @@ public partial class MainWindow
                 out var fills, out var texts, out var adjustments))
             return false;
 
+        ClosePdfDocument();
         var source = image.Format == PixelFormats.Bgra32
             ? image : new FormatConvertedBitmap(image, PixelFormats.Bgra32, null, 0);
         _pixelWidth = source.PixelWidth;
@@ -842,19 +843,55 @@ public partial class MainWindow
     {
         try
         {
-            var shot = new Views.ScreenshotWindow(mode)
+            PrepareForScreenOverlay();
+
+            // Snapshot before the overlay exists: cropping the live screen would
+            // include the dimmer/selection chrome and could block the UI thread.
+            var screen = Views.ScreenshotWindow.CaptureScreen();
+            if (screen == null)
             {
-                Owner = IsLoaded ? this : null,
-                WindowStartupLocation = WindowStartupLocation.Manual
-            };
-            if (shot.ShowDialog() == true && shot.CapturedImage != null)
-                App.OpenBitmap(shot.CapturedImage, $"屏幕截图 - {mode}");
+                MessageBox.Show("无法读取屏幕内容，截图已取消。", AppInfo.Name,
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            var wasTopmost = Topmost;
+            Topmost = false;
+            try
+            {
+                var shot = new Views.ScreenshotWindow(mode, screen)
+                {
+                    WindowStartupLocation = WindowStartupLocation.Manual,
+                    ShowInTaskbar = false,
+                    Owner = null
+                };
+                if (shot.ShowDialog() == true && shot.CapturedImage != null)
+                    App.OpenBitmap(shot.CapturedImage, $"屏幕截图 - {mode}");
+            }
+            finally
+            {
+                Topmost = wasTopmost;
+            }
         }
         catch (Exception ex)
         {
             MessageBox.Show($"截图功能启动失败：{ex.Message}", AppInfo.Name,
                 MessageBoxButton.OK, MessageBoxImage.Warning);
         }
+    }
+
+    /// <summary>Drop every transient UI grab before a modal overlay takes input.</summary>
+    private void PrepareForScreenOverlay()
+    {
+        if (_compassOpen) CloseCompass();
+        if (_annotating) { _annotating = false; ClearDraftVisual(); }
+        _panningImage = false;
+        _movingWindow = false;
+        if (IsMouseCaptured) ReleaseMouseCapture();
+        _badgeMenuKind = BadgeMenuKind.None;
+        ToolBadgeMenu.Visibility = Visibility.Collapsed;
+        ShotMenu.IsOpen = false;
+        RestoreCursor();
     }
 
     private void ShotButton_Click(object sender, RoutedEventArgs e) => ShotMenu.IsOpen = true;

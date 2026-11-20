@@ -65,6 +65,9 @@ public sealed class AppSettings
     [JsonConverter(typeof(JsonStringEnumConverter))]
     public CompassButton CompassButton { get; set; } = CompassButton.Right;
 
+    /// <summary>Compass (radial menu) size as a percentage of the default (70 - 160).</summary>
+    public double CompassSize { get; set; } = 100;
+
     public string ToggleTopMostHotkey { get; set; } = "Shift+Ctrl+Alt+T";
     public string FitWindowToImageHotkey { get; set; } = "Shift+Ctrl+Alt+R";
     public string FitImageToWindowHotkey { get; set; } = "Shift+Ctrl+Alt+S";

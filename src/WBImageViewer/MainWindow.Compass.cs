@@ -6,6 +6,7 @@ using System.Windows.Media.Animation;
 using System.Windows.Media.Effects;
 using System.Windows.Shapes;
 using WBImageViewer.Models;
+using WBImageViewer.Native;
 using WBImageViewer.Services;
 using Color = System.Windows.Media.Color;
 using Point = System.Windows.Point;
@@ -23,6 +24,11 @@ namespace WBImageViewer;
 /// </summary>
 public partial class MainWindow
 {
+    // Polled every render frame while the compass is open. Fast sweeps can skip mouse
+    // events entirely; sampling the real cursor keeps the outer ring responsive.
+    private Win32.POINT _compassLastPoll;
+    private bool _compassPollInitialized;
+
     private enum CompassAction
     {
         None, Pointer, Move, Line, Wave, DoubleLine, Freehand, Circle, Fill,
@@ -66,19 +72,35 @@ public partial class MainWindow
         }
     }
 
-    private static readonly double[] CompassRingInner = { 34, 74, 114, 154 };
-    private static readonly double[] CompassRingOuter = { 70, 110, 150, 190 };
+    // Base ring geometry (100% scale). The live radii are derived from the user's
+    // CompassSize setting so the whole radial menu can grow or shrink as one surface.
+    private static readonly double[] CompassRingInnerBase = { 34, 74, 114, 154 };
+    private static readonly double[] CompassRingOuterBase = { 70, 110, 150, 190 };
+    private static readonly int CompassRingCount = CompassRingInnerBase.Length;
 
-    // Theme accents: cool graphite UI with restrained blue / violet / amber highlights.
+    private double CompassScale => Math.Clamp(App.Settings.CompassSize / 100.0, 0.7, 1.6);
+    private double CompassInner(int r) => CompassRingInnerBase[r] * CompassScale;
+    private double CompassOuter(int r) => CompassRingOuterBase[r] * CompassScale;
+
+    // Unified theme palette: every compass sector uses the application's blue accent so the
+    // radial menu reads as one coherent surface. Only genuine colour-swatch leaves (which
+    // carry a TargetColor) keep their representative hue, and that hue is shown as a small
+    // dot rather than tinting the whole sector.
     private static readonly (byte R, byte G, byte B) ThemeBlue = (108, 182, 255);
-    private static readonly (byte R, byte G, byte B) ThemeViolet = (176, 150, 238);
-    private static readonly (byte R, byte G, byte B) ThemeTeal = (118, 202, 206);
-    private static readonly (byte R, byte G, byte B) ThemeWarm = (235, 194, 116);
-    private static readonly (byte R, byte G, byte B) ThemeRose = (232, 138, 138);
+    private static readonly (byte R, byte G, byte B) ThemeBlueSoft = (150, 190, 230);
 
     private static CompassNode CNode(string label, string glyph, string desc, byte r, byte g, byte b,
-        CompassAction action = CompassAction.None, Color? target = null, IEnumerable<CompassNode>? children = null) =>
-        new(label, glyph, desc, Color.FromArgb(236, r, g, b), action, target, children);
+        CompassAction action = CompassAction.None, Color? target = null, IEnumerable<CompassNode>? children = null)
+    {
+        // r/g/b are legacy per-node colours from the old rainbow palette. They are intentionally
+        // ignored now: the menu is uniformly themed, with a soft variant for leaf commands.
+        var accent = target.HasValue
+            ? Color.FromArgb(230, target.Value.R, target.Value.G, target.Value.B)
+            : (children != null && children.Any()
+                ? Color.FromArgb(230, ThemeBlue.R, ThemeBlue.G, ThemeBlue.B)
+                : Color.FromArgb(230, ThemeBlueSoft.R, ThemeBlueSoft.G, ThemeBlueSoft.B));
+        return new CompassNode(label, glyph, desc, accent, action, target, children);
+    }
 
     private static List<CompassNode> ColorLeaves() => new()
     {
@@ -104,7 +126,7 @@ public partial class MainWindow
     };
 
     private static CompassNode ScreenshotGroup() =>
-        CNode("截图", "✂", "全屏 / 窗口 / 矩形 / 自由区域", ThemeRose.R, ThemeRose.G, ThemeRose.B, children: new[]
+        CNode("截图", "✂", "全屏 / 窗口 / 矩形 / 自由区域", ThemeBlue.R, ThemeBlue.G, ThemeBlue.B, children: new[]
         {
             CNode("全屏", "▣", "截取整个虚拟屏幕", 216, 132, 112, CompassAction.ShotFull),
             CNode("窗口", "▢", "单击目标窗口截图", 150, 160, 210, CompassAction.ShotWindow),
@@ -126,8 +148,8 @@ public partial class MainWindow
             CNode("标准线", "╌", "平滑标准线型（含波浪、双线、圆圈）", 108, 182, 255, CompassAction.StandardLine),
             CNode("手绘线", "〰", "手绘笔触线型", 176, 150, 238, CompassAction.HandDrawnLine)
         }),
-        CNode("颜色", "◐", "笔迹颜色 / 调色板", ThemeViolet.R, ThemeViolet.G, ThemeViolet.B, children: ColorLeaves()),
-        CNode("透明", "◑", "不透明度与荧光笔", ThemeTeal.R, ThemeTeal.G, ThemeTeal.B, children: OpacityLeaves()),
+        CNode("颜色", "◐", "笔迹颜色 / 调色板", ThemeBlue.R, ThemeBlue.G, ThemeBlue.B, children: ColorLeaves()),
+        CNode("透明", "◑", "不透明度与荧光笔", ThemeBlue.R, ThemeBlue.G, ThemeBlue.B, children: OpacityLeaves()),
         CNode("粗细", "↕", "笔迹粗细", 96, 140, 168, children: new[]
         {
             CNode("极细", "·", "1 px", 128, 168, 200, CompassAction.Size1),
@@ -143,14 +165,14 @@ public partial class MainWindow
             CNode("擦头＋", "＋", "增大擦头", 96, 168, 196, CompassAction.EraserBigger),
             CNode("擦头－", "－", "减小擦头", 96, 168, 196, CompassAction.EraserSmaller)
         }),
-        CNode("AI", "✧", "框选翻译、识别与配置", ThemeViolet.R, ThemeViolet.G, ThemeViolet.B, children: new[]
+        CNode("AI", "✧", "框选翻译、识别与配置", ThemeBlue.R, ThemeBlue.G, ThemeBlue.B, children: new[]
         {
             CNode("配置", "⚙", "配置大模型接口、密钥与模型", 150, 160, 190, CompassAction.AiConfig),
             CNode("翻译", "文", "框选区域并翻译", 92, 176, 210, CompassAction.RegionTranslate),
             CNode("识别", "◉", "框选区域识别文字（含手写）", 120, 200, 150, CompassAction.RegionOcr)
         }),
         ScreenshotGroup(),
-        CNode("工具", "⚙", "指针、移动、清空与退出", ThemeWarm.R, ThemeWarm.G, ThemeWarm.B, children: new[]
+        CNode("工具", "⚙", "指针、移动、清空与退出", ThemeBlue.R, ThemeBlue.G, ThemeBlue.B, children: new[]
         {
             CNode("指针", "✥", "返回指针（停止标注）", 82, 116, 168, CompassAction.Pointer),
             CNode("移动", "✜", "拖动已绘制的标注元素", 92, 176, 210, CompassAction.Move),
@@ -170,13 +192,13 @@ public partial class MainWindow
             CNode("另存为", "⇨", "另存为 .gjpg 可编辑工程", 200, 180, 120, CompassAction.SaveAs)
         }),
         ScreenshotGroup(),
-        CNode("窗口", "▢", "窗口控制", ThemeTeal.R, ThemeTeal.G, ThemeTeal.B, children: new[]
+        CNode("窗口", "▢", "窗口控制", ThemeBlue.R, ThemeBlue.G, ThemeBlue.B, children: new[]
         {
             CNode("置顶", "📌", "切换置顶", 220, 180, 90, CompassAction.ToggleTopMost),
             CNode("设置", "⚙", "后台设置", 150, 160, 190, CompassAction.Settings),
             CNode("关于", "i", "关于本软件", 150, 190, 210, CompassAction.About)
         }),
-        CNode("退出", "✕", "关闭罗盘 / 返回正常界面", ThemeRose.R, ThemeRose.G, ThemeRose.B, children: new[] { CNode("返回", "↩", "退出工具", 150, 150, 160, CompassAction.ExitTool) })
+        CNode("退出", "✕", "关闭罗盘 / 返回正常界面", ThemeBlue.R, ThemeBlue.G, ThemeBlue.B, children: new[] { CNode("返回", "↩", "退出工具", 150, 150, 160, CompassAction.ExitTool) })
     };
 
     /// <summary>Element context: edit the element under the pointer.</summary>
@@ -190,15 +212,15 @@ public partial class MainWindow
             CNode("标准线", "╌", "切换为平滑标准线", 108, 182, 255, CompassAction.StandardLine),
             CNode("手绘线", "〰", "切换为手绘笔触", 176, 150, 238, CompassAction.HandDrawnLine)
         }),
-        CNode("颜色", "◐", "修改元素颜色", ThemeViolet.R, ThemeViolet.G, ThemeViolet.B, children: ColorLeaves()),
-        CNode("透明", "◑", "修改元素不透明度", ThemeTeal.R, ThemeTeal.G, ThemeTeal.B, children: OpacityLeaves()),
+        CNode("颜色", "◐", "修改元素颜色", ThemeBlue.R, ThemeBlue.G, ThemeBlue.B, children: ColorLeaves()),
+        CNode("透明", "◑", "修改元素不透明度", ThemeBlue.R, ThemeBlue.G, ThemeBlue.B, children: OpacityLeaves()),
         CNode("粗细", "↕", "调整元素笔触粗细", 96, 140, 168, children: new[]
         {
             CNode("加粗", "＋", "笔触加粗", 128, 168, 200, CompassAction.ElemThicker),
             CNode("变细", "－", "笔触变细", 128, 168, 200, CompassAction.ElemThinner)
         }),
         ScreenshotGroup(),
-        CNode("操作", "⚙", "复制、删除与退出", ThemeWarm.R, ThemeWarm.G, ThemeWarm.B, children: new[]
+        CNode("操作", "⚙", "复制、删除与退出", ThemeBlue.R, ThemeBlue.G, ThemeBlue.B, children: new[]
         {
             CNode("复制", "⧉", "复制该元素", 92, 176, 210, CompassAction.DuplicateElement),
             CNode("删除", "✕", "删除该元素", 216, 82, 82, CompassAction.DeleteElement),
@@ -289,7 +311,11 @@ public partial class MainWindow
     private bool HandleCompassMove(MouseEventArgs e)
     {
         if (!_compassOpen) return false;
-        UpdateCompass(e.GetPosition(Root));
+        // Do NOT feed the WPF mouse-event position into UpdateCompass here. During fast
+        // sweeps WPF coalesces mouse messages, so e.GetPosition can lag the real cursor;
+        // a stale event arriving after a fresh poll used to yank the selection back and
+        // produced the "broken contact" on the outer ring. The render-frame poll in
+        // CompassRendering uses GetCursorPos and is the single authoritative source.
         e.Handled = true;
         return true;
     }
@@ -297,7 +323,13 @@ public partial class MainWindow
     private bool HandleCompassUp(MouseButtonEventArgs e)
     {
         if (!_compassOpen) return false;
-        UpdateCompass(e.GetPosition(Root));
+        // Re-poll the real cursor at release instead of trusting the coalesced WPF event,
+        // so a fast sweep that ends on the outer ring is committed from its final position.
+        if (Win32.GetCursorPos(out var cursor))
+        {
+            try { UpdateCompass(PointFromScreen(new Point(cursor.X, cursor.Y))); }
+            catch { /* window may be closing */ }
+        }
 
         // The guide line may select an outer ring, but a group selected by the line is
         // preview-only: expanding it must never lead to an accidental command.
@@ -325,11 +357,13 @@ public partial class MainWindow
     private void OpenCompass(Point rootPoint, Point imagePoint)
     {
         CloseCompass();
+        CompositionTarget.Rendering += CompassRendering;
+        _compassPollInitialized = false;
         _compassOrigin = rootPoint;
         _compassPointer = rootPoint;
-        _compassSelection = new int[CompassRingInner.Length];
+        _compassSelection = new int[CompassRingCount];
         for (var i = 0; i < _compassSelection.Length; i++) _compassSelection[i] = -1;
-        _compassTrigger = new CompassTrigger[CompassRingInner.Length];
+        _compassTrigger = new CompassTrigger[CompassRingCount];
         _compassPreviewRing = -1;
         _compassLineAngle = double.NaN;
         _compassOpen = true;
@@ -350,13 +384,13 @@ public partial class MainWindow
         };
         _compassGuideFlow.Effect = new DropShadowEffect
         {
-            Color = Color.FromRgb(255, 214, 92), BlurRadius = 6, ShadowDepth = 0, Opacity = 0.85
+            Color = Color.FromRgb(108, 182, 255), BlurRadius = 6, ShadowDepth = 0, Opacity = 0.85
         };
-        var flowBrush = new SolidColorBrush(Color.FromRgb(255, 214, 92));
+        var flowBrush = new SolidColorBrush(Color.FromRgb(108, 182, 255));
         _compassGuideFlow.Stroke = flowBrush;
         flowBrush.BeginAnimation(SolidColorBrush.ColorProperty, new ColorAnimation
         {
-            From = Color.FromRgb(255, 214, 92), To = Color.FromRgb(96, 226, 255),
+            From = Color.FromRgb(108, 182, 255), To = Color.FromRgb(198, 226, 255),
             Duration = TimeSpan.FromMilliseconds(650), AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever
         });
         _compassGuideFlow.BeginAnimation(Shape.StrokeDashOffsetProperty,
@@ -371,8 +405,11 @@ public partial class MainWindow
         };
         _compassTooltipText = new TextBlock
         {
-            Foreground = Brushes.White, FontSize = 11, TextWrapping = TextWrapping.Wrap, MaxWidth = 210
+            Foreground = Brushes.White, FontSize = 13, TextWrapping = TextWrapping.Wrap, MaxWidth = 260,
+            SnapsToDevicePixels = true
         };
+        System.Windows.Media.TextOptions.SetTextFormattingMode(_compassTooltipText, TextFormattingMode.Display);
+        System.Windows.Media.TextOptions.SetTextRenderingMode(_compassTooltipText, TextRenderingMode.ClearType);
         _compassTooltip.Child = _compassTooltipText;
 
         RebuildCompass();
@@ -398,19 +435,21 @@ public partial class MainWindow
         };
         var hub = new Ellipse
         {
-            Width = CompassRingInner[0] * 2 - 6, Height = CompassRingInner[0] * 2 - 6,
+            Width = CompassInner(0) * 2 - 6, Height = CompassInner(0) * 2 - 6,
             Fill = new SolidColorBrush(Color.FromArgb(246, 53, 53, 55)),
-            Stroke = new SolidColorBrush(Color.FromArgb(220, 255, 255, 255)),
+            Stroke = new SolidColorBrush(Color.FromArgb(220,
+                ThemeBlueSoft.R, ThemeBlueSoft.G, ThemeBlueSoft.B)),
             StrokeThickness = 1.2, IsHitTestVisible = false
         };
         hub.Effect = new DropShadowEffect { Color = Colors.Black, BlurRadius = 10, ShadowDepth = 2, Opacity = 0.6 };
-        Canvas.SetLeft(hub, _compassOrigin.X - (CompassRingInner[0] - 3));
-        Canvas.SetTop(hub, _compassOrigin.Y - (CompassRingInner[0] - 3));
+        Canvas.SetLeft(hub, _compassOrigin.X - (CompassInner(0) - 3));
+        Canvas.SetTop(hub, _compassOrigin.Y - (CompassInner(0) - 3));
         CompassLayer.Children.Add(hub);
         _compassVisuals.Add(hub);
-        AddCompassText(hubLabel, _compassOrigin.X - 26, _compassOrigin.Y - 9, 52, 18, 11, Brushes.White, FontWeights.SemiBold);
+        AddCompassText(hubLabel, _compassOrigin.X - 32, _compassOrigin.Y - 11, 64, 22,
+            13 * CompassScale, Brushes.White, FontWeights.SemiBold);
 
-        for (var ring = 0; ring < CompassRingInner.Length; ring++)
+        for (var ring = 0; ring < CompassRingCount; ring++)
         {
             if (ring > 0 && _compassSelection[ring - 1] < 0) break;
             var nodes = CompassChildrenAt(ring);
@@ -429,21 +468,41 @@ public partial class MainWindow
                 var isBreadcrumb = isSelected && ring < _compassActiveRing && !isLineGroup;
                 var isActive = isPointer || isBreadcrumb;
                 var dim = ringHasSelection && !isSelected;
-                var path = CreateSectorPath(_compassOrigin, CompassRingInner[ring], CompassRingOuter[ring],
+                var path = CreateSectorPath(_compassOrigin, CompassInner(ring), CompassOuter(ring),
                     start, end, node.Accent, isActive, dim, previewRing || isLineGroup);
                 CompassLayer.Children.Add(path);
                 _compassVisuals.Add(path);
 
                 var mid = (start + end) / 2;
-                var radius = (CompassRingInner[ring] + CompassRingOuter[ring]) / 2;
+                var radius = (CompassInner(ring) + CompassOuter(ring)) / 2;
                 var labelPoint = Polar(_compassOrigin, radius, mid);
-                var glyphSize = ring == 0 ? 14 : 12;
-                var textAlpha = isActive ? (byte)255 : dim ? (byte)95 : previewRing ? (byte)130 : (byte)235;
-                var textBrush = new SolidColorBrush(Color.FromArgb(textAlpha, 238, 243, 250));
-                AddCompassText(node.Glyph, labelPoint.X - 15, labelPoint.Y - 17, 30, 18, glyphSize, textBrush, FontWeights.SemiBold);
+                // Larger glyphs + font scaling; labels get a crisp, slightly larger face.
+                var glyphSize = (ring == 0 ? 18 : 16) * CompassScale;
+                var labelSize = 12 * CompassScale;
+                var textAlpha = isActive ? (byte)255 : dim ? (byte)110 : previewRing ? (byte)150 : (byte)245;
+                var textBrush = new SolidColorBrush(Color.FromArgb(textAlpha, 242, 247, 255));
+                AddCompassText(node.Glyph, labelPoint.X - 20, labelPoint.Y - 21, 40, 24,
+                    glyphSize, textBrush, FontWeights.SemiBold);
                 if (ring <= 1)
-                    AddCompassText(node.Label, labelPoint.X - 24, labelPoint.Y - 1, 48, 14, 9,
-                        new SolidColorBrush(Color.FromArgb(textAlpha, 235, 240, 248)), FontWeights.Normal);
+                    AddCompassText(node.Label, labelPoint.X - 30, labelPoint.Y + 1, 60, 18, labelSize,
+                        new SolidColorBrush(Color.FromArgb(textAlpha, 238, 244, 252)), FontWeights.Normal);
+
+                // Colour-swatch leaves show their representative hue as a small dot so the
+                // picker stays meaningful while the menu background stays uniformly themed.
+                if (node.TargetColor.HasValue && node.Action == CompassAction.SetColor)
+                {
+                    var dot = new Ellipse
+                    {
+                        Width = 7 * CompassScale, Height = 7 * CompassScale,
+                        Fill = new SolidColorBrush(node.TargetColor.Value),
+                        Stroke = new SolidColorBrush(Color.FromArgb(200, 255, 255, 255)),
+                        StrokeThickness = 0.8, IsHitTestVisible = false
+                    };
+                    Canvas.SetLeft(dot, labelPoint.X - 3.5);
+                    Canvas.SetTop(dot, labelPoint.Y + (ring <= 1 ? 18 : 14) * CompassScale);
+                    CompassLayer.Children.Add(dot);
+                    _compassVisuals.Add(dot);
+                }
             }
         }
 
@@ -459,7 +518,16 @@ public partial class MainWindow
         {
             Text = text, FontSize = size, FontWeight = weight, Foreground = brush,
             Width = w, Height = h, TextAlignment = TextAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center, IsHitTestVisible = false
+            VerticalAlignment = VerticalAlignment.Center, IsHitTestVisible = false,
+            // Disable subpixel text animation and snap to whole pixels: removes the blurry
+            // look that appears while the radial menu rebuilds every poll frame.
+            SnapsToDevicePixels = true
+        };
+        System.Windows.Media.TextOptions.SetTextFormattingMode(label, TextFormattingMode.Display);
+        System.Windows.Media.TextOptions.SetTextRenderingMode(label, TextRenderingMode.ClearType);
+        label.Effect = new DropShadowEffect
+        {
+            Color = Color.FromRgb(0, 0, 0), BlurRadius = 2, ShadowDepth = 1, Opacity = 0.7
         };
         Canvas.SetLeft(label, x);
         Canvas.SetTop(label, y);
@@ -579,7 +647,7 @@ public partial class MainWindow
         var changed = false;
 
         // Hub: collapse the whole path.
-        if (distance < CompassRingInner[0] - 4)
+        if (distance < CompassInner(0) - 4)
         {
             ClearCompassSelection();
             RebuildCompass();
@@ -589,9 +657,14 @@ public partial class MainWindow
         }
 
         var pointerRing = -1;
-        for (var r = 0; r < CompassRingInner.Length; r++)
+        for (var r = 0; r < CompassRingCount; r++)
         {
-            if (distance >= CompassRingInner[r] - 3 && distance <= CompassRingOuter[r] + 11) { pointerRing = r; break; }
+            // A fast sweep can land well past a ring between two poll frames. Give every
+            // ring a generous outward tolerance so the pointer (and the line) keeps a firm
+            // grip on the sector it is crossing instead of dropping into the line branch.
+            var outerGrace = r == CompassRingCount - 1 ? 70 * CompassScale : 20 * CompassScale;
+            if (distance >= CompassInner(r) - 5 * CompassScale && distance <= CompassOuter(r) + outerGrace)
+            { pointerRing = r; break; }
         }
 
         if (pointerRing >= 0)
@@ -628,12 +701,17 @@ public partial class MainWindow
             // visible ring. Angular hysteresis keeps a wobbly hand from flipping sectors
             // back and forth (which used to look like stutter / lost contact).
             var ring = _compassActiveRing;
-            if (ring < 0 || ring >= CompassRingInner.Length || CompassChildrenAt(ring).Count == 0)
+            if (ring < 0 || ring >= CompassRingCount || CompassChildrenAt(ring).Count == 0)
                 ring = DeepestVisibleCompassRing();
+            // Once the outermost menu has been opened, the guide line must be able to
+            // re-trigger it even if the cursor jumped far outside the compass.
+            var outermost = CompassRingCount - 1;
+            if (_compassSelection[outermost] >= 0 && CompassChildrenAt(outermost).Count > 0)
+                ring = outermost;
             var nodes = CompassChildrenAt(ring);
             if (nodes.Count > 0)
             {
-                var midRadius = (CompassRingInner[ring] + CompassRingOuter[ring]) / 2;
+                var midRadius = (CompassInner(ring) + CompassOuter(ring)) / 2;
                 var sample = distance > midRadius
                     ? new Point(_compassOrigin.X + dx * (midRadius / distance),
                                 _compassOrigin.Y + dy * (midRadius / distance))
@@ -641,25 +719,24 @@ public partial class MainWindow
                 var angle = SectorAngle(sample);
                 var span = 360.0 / nodes.Count;
                 var idx = _compassSelection[ring];
-                if (idx < 0 || idx >= nodes.Count || double.IsNaN(_compassLineAngle) ||
-                    Math.Abs(AngleDifference(angle, _compassLineAngle)) > Math.Max(2.2, span * 0.12))
+                // Track the line continuously: recompute the sector on every poll. Keeping the
+                // old hysteresis gate here is what caused fast sweeps to "lose" the outer menu
+                // (the small angle step never exceeded the threshold, so no update happened).
+                var candidate = (int)(angle / span) % nodes.Count;
+                if (idx != candidate)
                 {
-                    var candidate = (int)(angle / span) % nodes.Count;
-                    if (idx != candidate)
-                    {
-                        _compassSelection[ring] = candidate;
-                        InvalidateDeeperCompassRings(ring);
-                        idx = candidate;
-                        changed = true;
-                    }
-                    _compassLineAngle = angle;
+                    _compassSelection[ring] = candidate;
+                    InvalidateDeeperCompassRings(ring);
+                    idx = candidate;
+                    changed = true;
                 }
+                _compassLineAngle = angle;
                 changed |= _compassTrigger[ring] != CompassTrigger.Line;
                 _compassTrigger[ring] = CompassTrigger.Line;
                 _compassActiveRing = ring;
 
                 var node = nodes[idx];
-                var preview = ring + 1 < CompassRingInner.Length && node.IsGroup ? ring + 1 : -1;
+                var preview = ring + 1 < CompassRingCount && node.IsGroup ? ring + 1 : -1;
                 if (_compassPreviewRing != preview) { _compassPreviewRing = preview; changed = true; }
             }
         }
@@ -720,8 +797,23 @@ public partial class MainWindow
         _compassTooltip.UpdateLayout();
     }
 
+    private void CompassRendering(object? sender, EventArgs e)
+    {
+        if (!_compassOpen || !Win32.GetCursorPos(out var cursor)) return;
+        if (_compassPollInitialized && cursor.X == _compassLastPoll.X && cursor.Y == _compassLastPoll.Y) return;
+        _compassLastPoll = cursor;
+        _compassPollInitialized = true;
+        try
+        {
+            UpdateCompass(PointFromScreen(new Point(cursor.X, cursor.Y)));
+        }
+        catch { /* the window may be closing while a frame is in flight */ }
+    }
+
     private void CloseCompass()
     {
+        CompositionTarget.Rendering -= CompassRendering;
+        _compassPollInitialized = false;
         _compassOpen = false;
         _compassActiveRing = -1;
         for (var i = 0; i < _compassSelection.Length; i++) _compassSelection[i] = -1;

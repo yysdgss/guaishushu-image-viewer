@@ -69,6 +69,28 @@
             <Setter Property="Foreground" Value="#FFC9D1DC" />
             <Setter Property="Margin" Value="0,6,0,0" />
         </Style>
+
+        <!-- Edge page-turn: a subtle inward S-curve that uses the same graphite glass
+             and soft white hairline as the rest of the theme (no bright accent glow). -->
+        <LinearGradientBrush x:Key="EdgeBulgeBrush" StartPoint="0,0" EndPoint="1,0">
+            <GradientStop Color="#2A434B57" Offset="0" />
+            <GradientStop Color="#1C242830" Offset="0.6" />
+            <GradientStop Color="#00242830" Offset="1" />
+        </LinearGradientBrush>
+        <LinearGradientBrush x:Key="EdgeBulgeRightBrush" StartPoint="1,0" EndPoint="0,0">
+            <GradientStop Color="#2A434B57" Offset="0" />
+            <GradientStop Color="#1C242830" Offset="0.6" />
+            <GradientStop Color="#00242830" Offset="1" />
+        </LinearGradientBrush>
+        <LinearGradientBrush x:Key="EdgeHighlightBrush" StartPoint="0,0" EndPoint="0,1">
+            <GradientStop Color="#00FFFFFF" Offset="0" />
+            <GradientStop Color="#42FFFFFF" Offset="0.5" />
+            <GradientStop Color="#00FFFFFF" Offset="1" />
+        </LinearGradientBrush>
+        <LinearGradientBrush x:Key="ThumbGlossBrush" StartPoint="0,0" EndPoint="0,1">
+            <GradientStop Color="#2EFFFFFF" Offset="0" />
+            <GradientStop Color="#00000000" Offset="0.45" />
+        </LinearGradientBrush>
     </Window.Resources>
 
     <WindowChrome.WindowChrome>
@@ -270,90 +292,141 @@
             </StackPanel>
         </Border>
 
-        <!-- Left/right page-turn zones: translucent half-arcs hugging the window edges.
-             The transparent border is the (tall) hit target; the arc is only its skin. -->
-        <Border x:Name="PrevZone" Width="72" Height="228" HorizontalAlignment="Left" VerticalAlignment="Center"
-                Background="#00000000" Opacity="0.22" Cursor="Hand" ToolTip="上一张"
+        <!-- Edge-hugging page-turn curves: short, subtle S-shaped bulges. The transparent
+             border is the hit target; a single soft-white hairline traces the curve. -->
+        <Border x:Name="PrevZone" Width="56" Height="150" HorizontalAlignment="Left" VerticalAlignment="Center"
+                Background="#00000000" Cursor="Hand" ToolTip="上一张"
                 MouseEnter="NavZone_Enter" MouseLeave="NavZone_Leave" MouseLeftButtonUp="PrevZone_Click">
-            <Grid>
-                <Path x:Name="PrevArc" Stretch="Fill"
-                      Data="M0,0 C 66,32 66,196 0,228 L0,0 Z"
-                      Fill="#8A353537" Stroke="{StaticResource ThemeEdgeBrush}" StrokeThickness="1"
+            <Grid x:Name="PrevBubble" Width="34" Height="118" HorizontalAlignment="Left" VerticalAlignment="Center"
+                  Opacity="0" IsHitTestVisible="False">
+                <Grid.RenderTransform>
+                    <TransformGroup>
+                        <ScaleTransform x:Name="PrevBubbleScale" ScaleX="0.3" ScaleY="0.85"
+                                        CenterX="0" CenterY="59" />
+                        <TranslateTransform x:Name="PrevBubbleShift" X="-6" />
+                    </TransformGroup>
+                </Grid.RenderTransform>
+                <Path Stretch="Fill" Fill="{StaticResource EdgeBulgeBrush}"
+                      Data="M 0,0 C 0,34 12,44 12,59 C 12,74 0,84 0,118 Z"
                       IsHitTestVisible="False" />
-                <TextBlock Text="‹" FontSize="42" Foreground="{StaticResource ThemeTextBrush}"
-                           HorizontalAlignment="Left" VerticalAlignment="Center" Margin="12,0,0,3"
-                           IsHitTestVisible="False" />
+                <Path Stretch="Fill" Fill="Transparent" Stroke="{StaticResource EdgeHighlightBrush}"
+                      StrokeThickness="1" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                      Data="M 0,2 C 0,34 12,44 12,59 C 12,74 0,84 0,116"
+                      IsHitTestVisible="False" />
             </Grid>
         </Border>
-        <Border x:Name="NextZone" Width="72" Height="228" HorizontalAlignment="Right" VerticalAlignment="Center"
-                Background="#00000000" Opacity="0.22" Cursor="Hand" ToolTip="下一张"
+        <Border x:Name="NextZone" Width="56" Height="150" HorizontalAlignment="Right" VerticalAlignment="Center"
+                Background="#00000000" Cursor="Hand" ToolTip="下一张"
                 MouseEnter="NavZone_Enter" MouseLeave="NavZone_Leave" MouseLeftButtonUp="NextZone_Click">
-            <Grid>
-                <Path x:Name="NextArc" Stretch="Fill"
-                      Data="M72,0 C 6,32 6,196 72,228 L72,0 Z"
-                      Fill="#8A353537" Stroke="{StaticResource ThemeEdgeBrush}" StrokeThickness="1"
+            <Grid x:Name="NextBubble" Width="34" Height="118" HorizontalAlignment="Right" VerticalAlignment="Center"
+                  Opacity="0" IsHitTestVisible="False">
+                <Grid.RenderTransform>
+                    <TransformGroup>
+                        <ScaleTransform x:Name="NextBubbleScale" ScaleX="0.3" ScaleY="0.85"
+                                        CenterX="34" CenterY="59" />
+                        <TranslateTransform x:Name="NextBubbleShift" X="6" />
+                    </TransformGroup>
+                </Grid.RenderTransform>
+                <Path Stretch="Fill" Fill="{StaticResource EdgeBulgeRightBrush}"
+                      Data="M 34,0 C 34,34 22,44 22,59 C 22,74 34,84 34,118 Z"
                       IsHitTestVisible="False" />
-                <TextBlock Text="›" FontSize="42" Foreground="{StaticResource ThemeTextBrush}"
-                           HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,12,3"
-                           IsHitTestVisible="False" />
+                <Path Stretch="Fill" Fill="Transparent" Stroke="{StaticResource EdgeHighlightBrush}"
+                      StrokeThickness="1" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                      Data="M 34,2 C 34,34 22,44 22,59 C 22,74 34,84 34,116"
+                      IsHitTestVisible="False" />
             </Grid>
         </Border>
 
-        <!-- Bottom filmstrip island: a small white bar grows into a translucent carousel. -->
-        <Grid x:Name="FilmstripHost" Width="620" Height="102" HorizontalAlignment="Center" VerticalAlignment="Bottom"
+        <!-- Bottom filmstrip: floating thumbnails only, no visible base plate.
+             The transparent layout grid keeps pointer coordinates stable while the
+             items themselves scale upward from their bottom edge. -->
+        <Grid x:Name="FilmstripHost" Width="720" Height="150" HorizontalAlignment="Center" VerticalAlignment="Bottom"
               IsHitTestVisible="False" Opacity="0" ClipToBounds="False"
-              MouseLeave="FilmstripHost_MouseLeave" MouseMove="FilmstripHost_MouseMove">
+              MouseLeave="FilmstripHost_MouseLeave" MouseMove="FilmstripHost_MouseMove"
+              PreviewMouseLeftButtonUp="FilmstripHost_PreviewMouseLeftButtonUp">
             <Grid.RenderTransform>
-                <TranslateTransform x:Name="FilmstripSlide" Y="98" />
+                <TranslateTransform x:Name="FilmstripSlide" Y="150" />
             </Grid.RenderTransform>
-            <Border x:Name="FilmstripPanel" Height="96" VerticalAlignment="Bottom" CornerRadius="18,18,0,0"
-                    Background="#E6353537" BorderBrush="#88FFFFFF" BorderThickness="1,1,0,0"
-                    ClipToBounds="False">
-                <Border.Effect>
-                    <DropShadowEffect Color="#000000" Opacity="0.45" BlurRadius="14" ShadowDepth="2" />
-                </Border.Effect>
-                <Grid Margin="10,4,10,8">
-                    <ListBox x:Name="FilmstripList" Background="Transparent" BorderThickness="0"
-                             ScrollViewer.HorizontalScrollBarVisibility="Hidden"
-                             ScrollViewer.VerticalScrollBarVisibility="Disabled"
-                             SelectionChanged="FilmstripList_SelectionChanged"
-                             PreviewMouseWheel="FilmstripList_PreviewMouseWheel">
-                        <ListBox.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <StackPanel Orientation="Horizontal" />
-                            </ItemsPanelTemplate>
-                        </ListBox.ItemsPanel>
-                        <ListBox.ItemContainerStyle>
-                            <Style TargetType="ListBoxItem">
-                                <Setter Property="Padding" Value="0" />
-                                <Setter Property="Margin" Value="5,0" />
-                                <Setter Property="Background" Value="Transparent" />
-                                <Setter Property="BorderThickness" Value="0" />
-                                <Setter Property="RenderTransformOrigin" Value="0.5,1" />
-                                <Setter Property="ClipToBounds" Value="False" />
-                            </Style>
-                        </ListBox.ItemContainerStyle>
-                        <ListBox.ItemTemplate>
-                            <DataTemplate>
-                                <Border Width="62" Height="58" CornerRadius="8" BorderThickness="2"
-                                        BorderBrush="{Binding Brush}" Background="#22161920">
-                                    <Image Source="{Binding Thumbnail}" Stretch="UniformToFill"
-                                           IsHitTestVisible="False" ClipToBounds="True" />
+            <Grid x:Name="FilmstripPanel" Width="680" Height="72" VerticalAlignment="Bottom" Margin="0,0,0,18"
+                  ClipToBounds="False">
+                <ListBox x:Name="FilmstripList" Background="Transparent" BorderThickness="0"
+                         Height="64" VerticalAlignment="Bottom" ClipToBounds="False"
+                         ScrollViewer.HorizontalScrollBarVisibility="Hidden"
+                         ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                         SelectionChanged="FilmstripList_SelectionChanged"
+                         PreviewMouseWheel="FilmstripList_PreviewMouseWheel">
+                    <ListBox.Resources>
+                        <!-- The stock ListBox template clips to its scroll viewport; that
+                             invisible clip used to cut magnified thumbnails in half. -->
+                        <Style TargetType="ScrollViewer">
+                            <Setter Property="ClipToBounds" Value="False" />
+                            <Setter Property="VerticalScrollBarVisibility" Value="Disabled" />
+                        </Style>
+                    </ListBox.Resources>
+                    <ListBox.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center"
+                                        VerticalAlignment="Bottom" ClipToBounds="False" />
+                        </ItemsPanelTemplate>
+                    </ListBox.ItemsPanel>
+                    <ListBox.ItemContainerStyle>
+                        <Style TargetType="ListBoxItem">
+                            <Setter Property="Padding" Value="0" />
+                            <Setter Property="Margin" Value="6,0" />
+                            <Setter Property="Background" Value="Transparent" />
+                            <Setter Property="BorderThickness" Value="0" />
+                            <Setter Property="RenderTransformOrigin" Value="0.5,1" />
+                            <Setter Property="ClipToBounds" Value="False" />
+                            <Setter Property="Focusable" Value="False" />
+                            <Setter Property="ToolTipService.InitialShowDelay" Value="180" />
+                            <Setter Property="ToolTip" Value="{Binding Name}" />
+                        </Style>
+                    </ListBox.ItemContainerStyle>
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <DataTemplate.Resources>
+                                <Style x:Key="FilmHalo" TargetType="Border">
+                                    <Setter Property="Margin" Value="-4" />
+                                    <Setter Property="CornerRadius" Value="16" />
+                                    <Setter Property="BorderThickness" Value="2" />
+                                    <Setter Property="BorderBrush" Value="#00FFFFFF" />
+                                    <Setter Property="IsHitTestVisible" Value="False" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}}"
+                                                     Value="True">
+                                            <Setter Property="BorderBrush" Value="#B8FFFFFF" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </DataTemplate.Resources>
+                            <Grid Width="48" Height="48">
+                                <Border Style="{StaticResource FilmHalo}" />
+                                <Border CornerRadius="12" BorderThickness="1.5" BorderBrush="{Binding Brush}"
+                                        Background="#331B2029" SnapsToDevicePixels="True">
+                                    <Border.Effect>
+                                        <DropShadowEffect Color="#000000" Opacity="0.5" BlurRadius="10" ShadowDepth="2" />
+                                    </Border.Effect>
+                                    <Grid>
+                                        <Image Source="{Binding Thumbnail}" Stretch="UniformToFill"
+                                               IsHitTestVisible="False" />
+                                        <Border Background="{StaticResource ThumbGlossBrush}"
+                                                IsHitTestVisible="False" />
+                                    </Grid>
                                 </Border>
-                            </DataTemplate>
-                        </ListBox.ItemTemplate>
-                    </ListBox>
-                    <TextBlock x:Name="FilmstripCounter" Text="0 / 0" Foreground="{StaticResource ThemeMutedTextBrush}"
-                               FontSize="10" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-2,2,0" />
-                </Grid>
-            </Border>
+                            </Grid>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+                <TextBlock x:Name="FilmstripCounter" Text="0 / 0" Visibility="Collapsed"
+                           Foreground="{StaticResource ThemeMutedTextBrush}" FontSize="10" />
+            </Grid>
         </Grid>
-        <!-- The visible 4px white trigger sits inside a taller transparent hit area so the
-             bottom WindowChrome resize border cannot swallow the hover. -->
+        <!-- The visible bar stays tiny until hover; the transparent hit grid keeps it reachable. -->
         <Grid x:Name="FilmstripBarHit" Width="220" Height="28" HorizontalAlignment="Center" VerticalAlignment="Bottom"
               Background="#00000000" Cursor="Hand" ToolTip="悬停浏览本目录图片"
-              MouseEnter="FilmstripBar_MouseEnter" MouseLeave="FilmstripBar_MouseLeave">
-            <Border x:Name="FilmstripBar" Width="120" Height="4" VerticalAlignment="Bottom"
+              MouseEnter="FilmstripBar_MouseEnter" MouseLeave="FilmstripBar_MouseLeave"
+              MouseMove="FilmstripBar_MouseMove">
+            <Border x:Name="FilmstripBar" Width="104" Height="4" VerticalAlignment="Bottom"
                     CornerRadius="2,2,0,0" Background="#D6FFFFFF" IsHitTestVisible="False" />
         </Grid>
 

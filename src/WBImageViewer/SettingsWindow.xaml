@@ -202,7 +202,7 @@
                                         <ComboBoxItem Content="Shift + Alt" Tag="ShiftAlt" />
                                     </ComboBox>
                                 </Grid>
-                                <Grid Margin="0,0,0,8">
+                                <Grid Margin="0,10,0,8">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="210" />
                                         <ColumnDefinition Width="*" />
@@ -212,6 +212,20 @@
                                         <ComboBoxItem Content="右键（默认）" Tag="Right" />
                                         <ComboBoxItem Content="中键" Tag="Middle" />
                                     </ComboBox>
+                                </Grid>
+                                <Grid Margin="0,10,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="210" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                        <TextBlock Text="罗盘大小" Style="{StaticResource FieldLabel}" />
+                                        <TextBlock x:Name="CompassSizeLabel" Text="100%" FontSize="11"
+                                                   Foreground="#FF6B7280" Margin="0,2,10,0" />
+                                    </StackPanel>
+                                    <Slider x:Name="CompassSizeSlider" Grid.Column="1" Minimum="70" Maximum="160"
+                                            SmallChange="5" LargeChange="10" ValueChanged="CompassSizeSlider_ValueChanged"
+                                            VerticalAlignment="Center" />
                                 </Grid>
                                 <Grid>
                                     <Grid.ColumnDefinitions>

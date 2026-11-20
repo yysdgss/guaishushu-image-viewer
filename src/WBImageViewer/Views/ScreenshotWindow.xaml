@@ -5,11 +5,27 @@
         Background="#00000000" ShowInTaskbar="False" Topmost="True"
         Cursor="Cross" Loaded="Window_Loaded">
     <Grid x:Name="Root">
-        <!-- dimming layer with a transparent cut-out -->
-        <Path x:Name="Dimmer" Fill="#AA000000" IsHitTestVisible="False" />
+        <!-- Pristine screen snapshot taken before the overlay opened. The crop always
+             comes from this bitmap, never from the live (dimmed) screen. -->
+        <Image x:Name="ScreenBackdrop" Stretch="Fill" IsHitTestVisible="False" />
+
+        <!-- Dimming made of four plain rectangles around the selection hole.
+             No StreamGeometry is used anywhere in this window: its context used to be
+             disposed while WPF was still rendering, which surfaced as a random
+             "Cannot access a disposed object: ByteStreamGeometryContext" crash. -->
+        <Canvas x:Name="DimCanvas" IsHitTestVisible="False">
+            <Rectangle x:Name="DimTop" Fill="#AA000000" />
+            <Rectangle x:Name="DimBottom" Fill="#AA000000" />
+            <Rectangle x:Name="DimLeft" Fill="#AA000000" />
+            <Rectangle x:Name="DimRight" Fill="#AA000000" />
+        </Canvas>
+
         <Canvas x:Name="SelectionCanvas">
-            <Path x:Name="SelectionBox" Stroke="#FF6CB6FF" StrokeThickness="1.5"
-                  Fill="#143464FF" Visibility="Collapsed" IsHitTestVisible="False" />
+            <Border x:Name="SelectionRect" Visibility="Collapsed" IsHitTestVisible="False"
+                    BorderBrush="#FF6CB6FF" BorderThickness="1.5" Background="#143464FF" />
+            <Polyline x:Name="SelectionFree" Visibility="Collapsed" IsHitTestVisible="False"
+                      Stroke="#FF6CB6FF" StrokeThickness="1.5" Fill="#143464FF"
+                      StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
             <Border x:Name="SizeTip" Visibility="Collapsed" IsHitTestVisible="False"
                     Background="#E610141A" BorderBrush="#55FFFFFF" BorderThickness="1" CornerRadius="4" Padding="4,2">
                 <TextBlock x:Name="SizeText" Foreground="White" FontSize="11" FontFamily="Consolas" />

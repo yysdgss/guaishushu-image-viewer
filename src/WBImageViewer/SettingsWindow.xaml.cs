@@ -30,6 +30,8 @@ public partial class SettingsWindow : Window
         SelectByTag(MoveModeBox, settings.MoveMode.ToString());
         SelectByTag(CompassModifierBox, settings.CompassModifier.ToString());
         SelectByTag(CompassButtonBox, settings.CompassButton.ToString());
+        CompassSizeSlider.Value = Math.Clamp(settings.CompassSize, 70, 160);
+        CompassSizeLabel.Text = $"{CompassSizeSlider.Value:0}%";
         TopMostBox.Text = settings.ToggleTopMostHotkey;
         FitWindowBox.Text = settings.FitWindowToImageHotkey;
         FitImageBox.Text = settings.FitImageToWindowHotkey;
@@ -208,6 +210,12 @@ public partial class SettingsWindow : Window
             OpacityLabel.Text = $"面板背景不透明度（图片不受影响） {OpacitySlider.Value:P0}";
     }
 
+    private void CompassSizeSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (CompassSizeLabel != null)
+            CompassSizeLabel.Text = $"{CompassSizeSlider.Value:0}%";
+    }
+
     private void PickColor_Click(object sender, RoutedEventArgs e)
     {
         using var dialog = new ColorDialog { FullOpen = true };
@@ -321,6 +329,7 @@ public partial class SettingsWindow : Window
                 ? compassModifier : CompassModifier.Ctrl,
             CompassButton = Enum.TryParse<CompassButton>(SelectedTag(CompassButtonBox), ignoreCase: true, out var compassButton)
                 ? compassButton : CompassButton.Right,
+            CompassSize = Math.Clamp(CompassSizeSlider.Value, 70, 160),
             ToggleTopMostHotkey = topMost,
             FitWindowToImageHotkey = fitWindow,
             FitImageToWindowHotkey = fitImage,

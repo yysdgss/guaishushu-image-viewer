@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net10.0-windows</TargetFramework>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
     <Nullable>enable</Nullable>
@@ -17,7 +17,7 @@
     <ApplicationIcon>Assets\app.ico</ApplicationIcon>
     <!-- Single source of truth for the product version. AppInfo and both packaging
          scripts read this value; never duplicate it in code or batch files. -->
-    <Version>4.2.1</Version>
+    <Version>4.5.0</Version>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <Product>怪叔叔看图</Product>
     <Authors>怪叔叔</Authors>
