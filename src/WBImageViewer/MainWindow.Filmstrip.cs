@@ -183,16 +183,16 @@ public partial class MainWindow
 
     private (FrameworkElement Bubble, ScaleTransform Scale, TranslateTransform Shift, double EdgeOffset) NavParts(Border zone)
         => ReferenceEquals(zone, PrevZone)
-            ? (PrevBubble, PrevBubbleScale, PrevBubbleShift, -4d)
-            : (NextBubble, NextBubbleScale, NextBubbleShift, 4d);
+            ? (PrevBubble, PrevBubbleScale, PrevBubbleShift, -8d)
+            : (NextBubble, NextBubbleScale, NextBubbleShift, 8d);
 
     private void ApplyNavZoneVisual(Border zone, bool enabled, string tooltip)
     {
         zone.ToolTip = tooltip;
         zone.Cursor = enabled ? Cursors.Hand : Cursors.No;
         var (bubble, scale, shift, edge) = NavParts(zone);
-        var opacity = !enabled ? 0.02 : zone.IsMouseOver ? 0.7 : 0.04;
-        var scaleX = !enabled ? 0.25 : zone.IsMouseOver ? 0.85 : 0.25;
+        var opacity = !enabled ? 0.02 : zone.IsMouseOver ? 0.85 : 0.05;
+        var scaleX = !enabled ? 0.18 : zone.IsMouseOver ? 1 : 0.35;
         AnimateNavBubble(bubble, scale, shift, edge, opacity, scaleX, 190, false);
     }
 
@@ -229,7 +229,7 @@ public partial class MainWindow
         var enabled = ReferenceEquals(zone, PrevZone) ? _prevNavEnabled : _nextNavEnabled;
         var (bubble, scale, shift, edge) = NavParts(zone);
         AnimateNavBubble(bubble, scale, shift, edge,
-            enabled ? 0.7 : 0.16, enabled ? 0.85 : 0.45, 260, true);
+            enabled ? 0.85 : 0.18, enabled ? 1 : 0.5, 260, true);
     }
 
     private void NavZone_Leave(object sender, MouseEventArgs e)
@@ -238,7 +238,7 @@ public partial class MainWindow
         var enabled = ReferenceEquals(zone, PrevZone) ? _prevNavEnabled : _nextNavEnabled;
         var (bubble, scale, shift, edge) = NavParts(zone);
         AnimateNavBubble(bubble, scale, shift, edge,
-            enabled ? 0.04 : 0.02, 0.3, 180, false);
+            enabled ? 0.05 : 0.02, 0.35, 180, false);
     }
 
     // ---------------- bottom Dock filmstrip ----------------
@@ -289,7 +289,7 @@ public partial class MainWindow
         _filmstripExpanded = expand;
         FilmstripHost.IsHitTestVisible = true;
 
-        var slide = new DoubleAnimation(expand ? 0 : 150, TimeSpan.FromMilliseconds(expand ? 300 : 200))
+        var slide = new DoubleAnimation(expand ? 0 : 250, TimeSpan.FromMilliseconds(expand ? 300 : 200))
         {
             EasingFunction = new CubicEase { EasingMode = expand ? EasingMode.EaseOut : EasingMode.EaseIn },
             FillBehavior = FillBehavior.HoldEnd
@@ -392,9 +392,23 @@ public partial class MainWindow
             .TransformBounds(new Rect(0, 0, item.ActualWidth, item.ActualHeight));
 
     /// <summary>
-    /// Resolve the icon whose current visual bounds sit under the pointer. The bounds
-    /// come from the live render transform, so the enlarged icon itself stays the hit
-    /// target even after its neighbours slide away.
+    /// Stable, unscaled centre of an item inside FilmstripPanel. RenderTransform does not
+    /// affect layout, so subtracting our own slide offset from the visual centre recovers
+    /// the fixed slot centre - immune to the magnification feedback loop.
+    /// </summary>
+    private double FilmLayoutCenter(ListBoxItem item)
+    {
+        var shiftX = _filmVisualStates.TryGetValue(item, out var s) ? s.OffsetX : 0;
+        var bounds = FilmBounds(item);
+        return (bounds.Left + bounds.Right) * 0.5 - shiftX;
+    }
+
+    /// <summary>
+    /// Resolve the icon under the pointer. Visual bounds are tried first so a magnified
+    /// overhang stays clickable; when the pointer sits in the gap BETWEEN two thumbnails
+    /// no bound contains it, so we fall back to the nearest stable layout centre. That
+    /// Voronoi-style assignment leaves no dead zone - the Dock never "drops" while the
+    /// cursor sweeps across the row.
     /// </summary>
     private int HoveredFilmIndex(IReadOnlyList<ListBoxItem> items, double pointerX)
     {
@@ -413,8 +427,23 @@ public partial class MainWindow
             bestDistance = distance;
             bestHalfWidth = bounds.Width * 0.5;
         }
+        if (bestDistance <= bestHalfWidth + DockPickPadding) return best;
 
-        return bestDistance <= bestHalfWidth + DockPickPadding ? best : -1;
+        // Gap: assign to the nearest layout centre, which does not move with scale.
+        var nearest = -1;
+        var nearestDistance = double.MaxValue;
+        for (var i = 0; i < items.Count; i++)
+        {
+            var distance = Math.Abs(pointerX - FilmLayoutCenter(items[i]));
+            if (distance >= nearestDistance) continue;
+            nearest = i;
+            nearestDistance = distance;
+        }
+        var half = items[nearest].ActualWidth * 0.5;
+        var first = FilmLayoutCenter(items[0]);
+        var last = FilmLayoutCenter(items[items.Count - 1]);
+        return pointerX >= first - half - DockPickPadding &&
+               pointerX <= last + half + DockPickPadding ? nearest : -1;
     }
 
     /// <summary>
@@ -443,9 +472,7 @@ public partial class MainWindow
         if (hovered >= 0)
         {
             var hoveredItem = items[hovered];
-            var shiftX = _filmVisualStates.TryGetValue(hoveredItem, out var s) ? s.OffsetX : 0;
-            var hoverBounds = FilmBounds(hoveredItem);
-            var layoutCenter = (hoverBounds.Left + hoverBounds.Right) * 0.5 - shiftX;
+            var layoutCenter = FilmLayoutCenter(hoveredItem);
             var left = layoutCenter - hoveredItem.ActualWidth * 0.5;
             offset = Math.Clamp((_filmPointerX - left) / Math.Max(1, hoveredItem.ActualWidth), 0, 1);
         }

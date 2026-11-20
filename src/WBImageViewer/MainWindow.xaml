@@ -91,6 +91,23 @@
             <GradientStop Color="#2EFFFFFF" Offset="0" />
             <GradientStop Color="#00000000" Offset="0.45" />
         </LinearGradientBrush>
+
+        <!-- Faux-3D Dock platform: a lit top plane, a darker front lip and a soft
+             contact shadow. Layered alpha gradients give depth without a bitmap. -->
+        <LinearGradientBrush x:Key="DockPlatformTopBrush" StartPoint="0,0" EndPoint="0,1">
+            <GradientStop Color="#45FFFFFF" Offset="0" />
+            <GradientStop Color="#20343F4C" Offset="0.42" />
+            <GradientStop Color="#101C262F" Offset="1" />
+        </LinearGradientBrush>
+        <LinearGradientBrush x:Key="DockPlatformSideBrush" StartPoint="0,0" EndPoint="0,1">
+            <GradientStop Color="#22313D4A" Offset="0" />
+            <GradientStop Color="#0A121920" Offset="1" />
+        </LinearGradientBrush>
+        <LinearGradientBrush x:Key="DockPlatformGlintBrush" StartPoint="0,0" EndPoint="1,0">
+            <GradientStop Color="#00FFFFFF" Offset="0" />
+            <GradientStop Color="#2EFFFFFF" Offset="0.5" />
+            <GradientStop Color="#00FFFFFF" Offset="1" />
+        </LinearGradientBrush>
     </Window.Resources>
 
     <WindowChrome.WindowChrome>
@@ -292,65 +309,93 @@
             </StackPanel>
         </Border>
 
-        <!-- Edge-hugging page-turn curves: short, subtle S-shaped bulges. The transparent
-             border is the hit target; a single soft-white hairline traces the curve. -->
-        <Border x:Name="PrevZone" Width="56" Height="150" HorizontalAlignment="Left" VerticalAlignment="Center"
+        <!-- Edge page-turn: a full-height, single smooth ")" bulge per side, with a
+             chevron in the middle. The two cubic segments meet with matching vertical
+             tangents at the apex, so the outline has no corner or sudden shoulder. -->
+        <Border x:Name="PrevZone" Width="72" Height="300" HorizontalAlignment="Left" VerticalAlignment="Center"
                 Background="#00000000" Cursor="Hand" ToolTip="上一张"
                 MouseEnter="NavZone_Enter" MouseLeave="NavZone_Leave" MouseLeftButtonUp="PrevZone_Click">
-            <Grid x:Name="PrevBubble" Width="28" Height="132" HorizontalAlignment="Left" VerticalAlignment="Center"
+            <Grid x:Name="PrevBubble" Width="46" Height="288" HorizontalAlignment="Left" VerticalAlignment="Center"
                   Opacity="0" IsHitTestVisible="False">
                 <Grid.RenderTransform>
                     <TransformGroup>
-                        <ScaleTransform x:Name="PrevBubbleScale" ScaleX="0.3" ScaleY="0.85"
-                                        CenterX="0" CenterY="66" />
-                        <TranslateTransform x:Name="PrevBubbleShift" X="-4" />
+                        <ScaleTransform x:Name="PrevBubbleScale" ScaleX="0.3" ScaleY="1"
+                                        CenterX="0" CenterY="144" />
+                        <TranslateTransform x:Name="PrevBubbleShift" X="-8" />
                     </TransformGroup>
                 </Grid.RenderTransform>
                 <Path Stretch="Fill" Fill="{StaticResource EdgeBulgeBrush}"
-                      Data="M 0,0 C 0,44 5,52 5,66 C 5,80 0,88 0,132 Z"
+                      Data="M 0,0 C 0,96 30,112 30,144 C 30,176 0,192 0,288 Z"
                       IsHitTestVisible="False" />
                 <Path Stretch="Fill" Fill="Transparent" Stroke="{StaticResource EdgeHighlightBrush}"
-                      StrokeThickness="1" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
-                      Data="M 0,3 C 0,44 5,52 5,66 C 5,80 0,88 0,129"
+                      StrokeThickness="1.2" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                      Data="M 0,4 C 0,96 30,112 30,144 C 30,176 0,192 0,284"
                       IsHitTestVisible="False" />
+                <Path Stretch="None" Stroke="#D6FFFFFF" StrokeThickness="1.6"
+                      StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                      Data="M 25,136 L 16,144 L 25,152" IsHitTestVisible="False" />
             </Grid>
         </Border>
-        <Border x:Name="NextZone" Width="56" Height="150" HorizontalAlignment="Right" VerticalAlignment="Center"
+        <Border x:Name="NextZone" Width="72" Height="300" HorizontalAlignment="Right" VerticalAlignment="Center"
                 Background="#00000000" Cursor="Hand" ToolTip="下一张"
                 MouseEnter="NavZone_Enter" MouseLeave="NavZone_Leave" MouseLeftButtonUp="NextZone_Click">
-            <Grid x:Name="NextBubble" Width="28" Height="132" HorizontalAlignment="Right" VerticalAlignment="Center"
+            <Grid x:Name="NextBubble" Width="46" Height="288" HorizontalAlignment="Right" VerticalAlignment="Center"
                   Opacity="0" IsHitTestVisible="False">
                 <Grid.RenderTransform>
                     <TransformGroup>
-                        <ScaleTransform x:Name="NextBubbleScale" ScaleX="0.3" ScaleY="0.85"
-                                        CenterX="28" CenterY="66" />
-                        <TranslateTransform x:Name="NextBubbleShift" X="4" />
+                        <ScaleTransform x:Name="NextBubbleScale" ScaleX="0.3" ScaleY="1"
+                                        CenterX="46" CenterY="144" />
+                        <TranslateTransform x:Name="NextBubbleShift" X="8" />
                     </TransformGroup>
                 </Grid.RenderTransform>
                 <Path Stretch="Fill" Fill="{StaticResource EdgeBulgeRightBrush}"
-                      Data="M 28,0 C 28,44 23,52 23,66 C 23,80 28,88 28,132 Z"
+                      Data="M 46,0 C 46,96 16,112 16,144 C 16,176 46,192 46,288 Z"
                       IsHitTestVisible="False" />
                 <Path Stretch="Fill" Fill="Transparent" Stroke="{StaticResource EdgeHighlightBrush}"
-                      StrokeThickness="1" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
-                      Data="M 28,3 C 28,44 23,52 23,66 C 23,80 28,88 28,129"
+                      StrokeThickness="1.2" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                      Data="M 46,4 C 46,96 16,112 16,144 C 16,176 46,192 46,284"
                       IsHitTestVisible="False" />
+                <Path Stretch="None" Stroke="#D6FFFFFF" StrokeThickness="1.6"
+                      StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                      Data="M 21,136 L 30,144 L 21,152" IsHitTestVisible="False" />
             </Grid>
         </Border>
 
-        <!-- Bottom filmstrip: floating thumbnails only, no visible base plate.
-             The transparent layout grid keeps pointer coordinates stable while the
-             items themselves scale upward from their bottom edge. -->
-        <Grid x:Name="FilmstripHost" Width="720" Height="150" HorizontalAlignment="Center" VerticalAlignment="Bottom"
+        <!-- Bottom Dock: a shallow 3D platform with thumbnails resting on its lit top
+             plane. The host is deliberately much taller than the thumbnails so the
+             magnified ones have room to grow without meeting any invisible clip. -->
+        <Grid x:Name="FilmstripHost" Width="760" Height="250" HorizontalAlignment="Center" VerticalAlignment="Bottom"
               Background="#00000000" IsHitTestVisible="False" Opacity="0" ClipToBounds="False"
               MouseLeave="FilmstripHost_MouseLeave" MouseMove="FilmstripHost_MouseMove"
               PreviewMouseLeftButtonUp="FilmstripHost_PreviewMouseLeftButtonUp">
             <Grid.RenderTransform>
-                <TranslateTransform x:Name="FilmstripSlide" Y="150" />
+                <TranslateTransform x:Name="FilmstripSlide" Y="250" />
             </Grid.RenderTransform>
-            <Grid x:Name="FilmstripPanel" Width="680" Height="72" Background="#00000000"
-                  VerticalAlignment="Bottom" Margin="0,0,0,18" ClipToBounds="False">
+            <Grid x:Name="FilmstripPanel" Width="720" Height="170" Background="#00000000"
+                  VerticalAlignment="Bottom" Margin="0,0,0,10" ClipToBounds="False">
+
+                <!-- Faux-3D depth platform: contact shadow, front lip, lit top plane
+                     and a soft glint. Pure XAML so it scales with DPI. -->
+                <Grid x:Name="DockPlatform" Width="680" Height="82" HorizontalAlignment="Center"
+                      VerticalAlignment="Bottom" IsHitTestVisible="False" ClipToBounds="False">
+                    <Border Width="632" Height="22" VerticalAlignment="Bottom" Margin="0,0,0,2"
+                            CornerRadius="11" Background="#C0000008">
+                        <Border.Effect>
+                            <BlurEffect Radius="9" />
+                        </Border.Effect>
+                    </Border>
+                    <Border Width="664" Height="48" VerticalAlignment="Bottom" Margin="0,0,0,8"
+                            CornerRadius="10,10,20,20" Background="{StaticResource DockPlatformSideBrush}"
+                            BorderBrush="#1AFFFFFF" BorderThickness="0,0,1,1" />
+                    <Border Width="680" Height="36" VerticalAlignment="Bottom" Margin="0,0,0,40"
+                            CornerRadius="18" Background="{StaticResource DockPlatformTopBrush}"
+                            BorderBrush="#40FFFFFF" BorderThickness="1" />
+                    <Border Width="636" Height="10" VerticalAlignment="Bottom" Margin="0,0,0,62"
+                            CornerRadius="5" Background="{StaticResource DockPlatformGlintBrush}" />
+                </Grid>
+
                 <ListBox x:Name="FilmstripList" Background="Transparent" BorderThickness="0"
-                         Height="64" VerticalAlignment="Bottom" ClipToBounds="False"
+                         Height="130" VerticalAlignment="Bottom" Margin="0,0,0,50" ClipToBounds="False"
                          ScrollViewer.HorizontalScrollBarVisibility="Hidden"
                          ScrollViewer.VerticalScrollBarVisibility="Disabled"
                          SelectionChanged="FilmstripList_SelectionChanged"
@@ -399,13 +444,12 @@
                                     </Style.Triggers>
                                 </Style>
                             </DataTemplate.Resources>
+                            <!-- No DropShadowEffect here: WPF effects allocate a render
+                                 surface at layout size and used to clip a scaled tile. -->
                             <Grid Width="48" Height="48">
                                 <Border Style="{StaticResource FilmHalo}" />
                                 <Border CornerRadius="12" BorderThickness="1.5" BorderBrush="{Binding Brush}"
                                         Background="#331B2029" SnapsToDevicePixels="True">
-                                    <Border.Effect>
-                                        <DropShadowEffect Color="#000000" Opacity="0.5" BlurRadius="10" ShadowDepth="2" />
-                                    </Border.Effect>
                                     <Grid>
                                         <Image Source="{Binding Thumbnail}" Stretch="UniformToFill"
                                                IsHitTestVisible="False" />
