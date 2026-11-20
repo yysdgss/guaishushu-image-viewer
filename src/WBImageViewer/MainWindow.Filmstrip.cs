@@ -363,14 +363,19 @@ public partial class MainWindow
         return group;
     }
 
-    // macOS Dock tuning constants. The pointer selects exactly one icon; every other
-    // icon stays at rest size and only slides aside to make room for it.
-    private const double DockRestScale = 0.85;   // icon size when the pointer is elsewhere
-    private const double DockPeakScale = 1.65;   // icon size directly under the pointer
-    private const double DockLift = 18;          // upward lift of the focused icon (px)
-    private const double DockSpring = 0.28;      // spring stiffness toward the target
-    private const double DockDamping = 0.72;     // velocity damping
-    private const double DockPickPadding = 8;    // forgiving hit area around each icon
+    // macOS Dock effect, rebuilt after the Tencent Cloud article "丝滑的 macOS Dock效果".
+    // The pointer picks exactly ONE icon; only that icon and its two immediate
+    // neighbours grow. The cursor's position INSIDE the hovered icon (offset 0..1)
+    // splits the growth between the two neighbours, so sweeping across one icon
+    // hands the peak continuously to the next - the article's key trick. Every
+    // other icon stays at rest size. WPF has no flex layout, so neighbours are
+    // displaced by the cumulative extra width, and a per-frame lerp plays the
+    // role of the article's CSS `transition`.
+    private const double DockRestScale = 0.85;    // --scale: 1 baseline (48px tiles rendered at 85%)
+    private const double DockPeakScale = 1.60;    // hovered icon reaches this (article: 1.6x)
+    private const double DockLiftPerScale = 22;   // upward lift per unit of extra scale (px)
+    private const double DockFollow = 0.32;       // silky follow, the CSS transition equivalent
+    private const double DockPickPadding = 8;     // forgiving hit area around each icon
 
     private List<ListBoxItem> RealizedFilmItems()
     {
@@ -413,9 +418,15 @@ public partial class MainWindow
     }
 
     /// <summary>
-    /// One focused thumbnail scales up; the rest remain at rest size and split around
-    /// it by half of the added width. Damped spring integration gives the macOS bounce
-    /// without letting neighbouring icons grow into a blurred cluster.
+    /// Per-frame implementation of the article's Dock algorithm. With offset = the
+    /// cursor's normalised position inside the hovered icon (0 at its left edge, 1 at
+    /// its right edge, via (pointer - itemRect.left) / itemRect.width):
+    ///   hovered  -> peak                          (always maximum)
+    ///   left     -> rest + boost * (1 - offset)   (shrinks as the cursor moves right)
+    ///   right    -> rest + boost * offset         (grows as the cursor moves right)
+    ///   others   -> rest
+    /// This is exactly the article's setProperty logic. Only three icons ever grow,
+    /// and the peak slides from the left neighbour to the right one with no jump.
     /// </summary>
     private void FilmRendering(object? sender, EventArgs e)
     {
@@ -424,10 +435,24 @@ public partial class MainWindow
         if (items.Count == 0) return;
 
         var hovered = HoveredFilmIndex(items, _filmPointerX);
-        var extra = hovered >= 0
-            ? (items[hovered].ActualWidth + 12) * (DockPeakScale - DockRestScale)
-            : 0;
 
+        // (pointerX - itemRect.left) / itemRect.width. Use the unscaled layout slot
+        // (RenderTransform does not affect layout) so the value cannot feed its own
+        // magnification back into the calculation and cause jitter.
+        var offset = 0.5;
+        if (hovered >= 0)
+        {
+            var hoveredItem = items[hovered];
+            var shiftX = _filmVisualStates.TryGetValue(hoveredItem, out var s) ? s.OffsetX : 0;
+            var hoverBounds = FilmBounds(hoveredItem);
+            var layoutCenter = (hoverBounds.Left + hoverBounds.Right) * 0.5 - shiftX;
+            var left = layoutCenter - hoveredItem.ActualWidth * 0.5;
+            offset = Math.Clamp((_filmPointerX - left) / Math.Max(1, hoveredItem.ActualWidth), 0, 1);
+        }
+
+        var boost = DockPeakScale - DockRestScale;
+        var states = new FilmVisualState[items.Count];
+        var scales = new double[items.Count];
         for (var i = 0; i < items.Count; i++)
         {
             var item = items[i];
@@ -436,24 +461,56 @@ public partial class MainWindow
                 state = new FilmVisualState { Scale = DockRestScale };
                 _filmVisualStates[item] = state;
             }
+            states[i] = state;
 
-            var targetScale = i == hovered ? DockPeakScale : DockRestScale;
-            state.ScaleVel = (state.ScaleVel + (targetScale - state.Scale) * DockSpring) * DockDamping;
-            state.Scale += state.ScaleVel;
+            double target;
+            if (hovered < 0) target = DockRestScale;
+            else if (i == hovered) target = DockPeakScale;
+            else if (i == hovered - 1) target = DockRestScale + boost * (1 - offset);
+            else if (i == hovered + 1) target = DockRestScale + boost * offset;
+            else target = DockRestScale;
 
-            var targetOffsetX = hovered < 0
-                ? 0
-                : i < hovered ? -extra * 0.5 : i > hovered ? extra * 0.5 : 0;
-            var targetOffsetY = i == hovered ? -DockLift : 0;
-            state.OffsetX += (targetOffsetX - state.OffsetX) * DockSpring;
-            state.OffsetY += (targetOffsetY - state.OffsetY) * DockSpring;
+            // CSS `transition` equivalent: smooth ease toward the target, no spring
+            // overshoot, so neighbouring icons never wobble after the pointer stops.
+            state.Scale += (target - state.Scale) * DockFollow;
+            scales[i] = state.Scale;
+        }
+
+        // A centred flex row pushes siblings aside by half of each icon's extra
+        // width. Reproduce that with cumulative sums so grown icons tile exactly:
+        // no overlap and no gaps, whatever the number of thumbnails.
+        var extras = new double[items.Count];
+        for (var i = 0; i < items.Count; i++)
+            extras[i] = items[i].ActualWidth * (scales[i] - DockRestScale);
+
+        var rightSums = new double[items.Count];
+        var tail = 0d;
+        for (var i = items.Count - 1; i >= 0; i--)
+        {
+            rightSums[i] = tail;
+            tail += extras[i];
+        }
+
+        var leftSum = 0d;
+        for (var i = 0; i < items.Count; i++)
+        {
+            var item = items[i];
+            var state = states[i];
+            var targetOffsetX = (leftSum - rightSums[i]) * 0.5;
+            leftSum += extras[i];
+
+            var targetOffsetY = -(scales[i] - DockRestScale) * DockLiftPerScale;
+            state.OffsetX += (targetOffsetX - state.OffsetX) * DockFollow;
+            state.OffsetY += (targetOffsetY - state.OffsetY) * DockFollow;
 
             var group = EnsureFilmTransforms(item);
-            ((ScaleTransform)group.Children[0]).ScaleX = state.Scale;
-            ((ScaleTransform)group.Children[0]).ScaleY = state.Scale;
+            ((ScaleTransform)group.Children[0]).ScaleX = scales[i];
+            ((ScaleTransform)group.Children[0]).ScaleY = scales[i];
             ((TranslateTransform)group.Children[1]).X = state.OffsetX;
             ((TranslateTransform)group.Children[1]).Y = state.OffsetY;
-            System.Windows.Controls.Panel.SetZIndex(item, i == hovered ? 1000 : 0);
+            var distance = hovered < 0 ? int.MaxValue : Math.Abs(i - hovered);
+            System.Windows.Controls.Panel.SetZIndex(item,
+                distance == 0 ? 1000 : distance == 1 ? 500 : 0);
         }
     }
 

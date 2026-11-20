@@ -142,7 +142,6 @@ public partial class MainWindow : Window
     private sealed class FilmVisualState
     {
         public double Scale = 0.85;
-        public double ScaleVel;
         public double OffsetX;
         public double OffsetY;
     }

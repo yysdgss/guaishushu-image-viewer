@@ -19,9 +19,9 @@
 | 软件名称 | 怪叔叔看图 |
 | 产品常量 | `AppInfo.Name = "怪叔叔看图"` |
 | 程序集名 | `怪叔叔看图`（安装器：`怪叔叔看图安装程序`）|
-| 当前版本 | `4.5.2` |
+| 当前版本 | `4.5.3` |
 | 仓库 | `https://github.com/yysdgss/guaishushu-image-viewer` |
-| Release | `v4.5.2` 已发布（上一版 `v4.5.1`）：https://github.com/yysdgss/guaishushu-image-viewer/releases/tag/v4.5.2 |
+| Release | `v4.5.3` 已发布（上一版 `v4.5.2`）：https://github.com/yysdgss/guaishushu-image-viewer/releases/tag/v4.5.3 |
 | 许可 | MIT |
 | 目标框架 | `net10.0-windows10.0.19041.0`（PDF 渲染需要 Windows 10 19041 SDK API） |
 | UI 框架 | WPF |
@@ -3645,9 +3645,19 @@ RedrawAnnotations();
 - **需求**：底部 macOS Dock 放大混乱、邻图标一起变形，点击缩略图不能稳定打开对应图片。
 - **实现**：放大逻辑改为“当前指针下只有一个图标聚焦”：用实时渲染包围盒定位悬停项，仅该项放大到 1.65 倍并上浮，其余图标保持 0.85 倍并各向两侧让出一半增量宽度；弹簧积分保留回弹但不再让邻图标膨胀。为 `FilmstripHost` 与 `FilmstripPanel` 增加透明背景使其覆盖放大溢出区可命中，点击处理复用同一包围盒索引，直接打开对应图片（R130）。
 
+### R131 按腾讯云示例重建 Dock 连续放大算法
+
+- **需求**：用户给出《丝滑的 macOS Dock效果》示例，要求底部缩略图严格按该示例的方式实现，而不是只放大单张或全局余弦衰减。
+- **实现**：`MainWindow.Filmstrip.cs` 按文章算法重写 `FilmRendering`：由包围盒定位悬停项 `h`，计算光标在该项内的归一化横向位置 `offset=(pointerX-left)/width`（取未缩放布局槽以保持稳定）；悬停项固定放大到峰值，左邻居放大 `boost×(1-offset)`，右邻居放大 `boost×offset`，其余保持静止尺寸——与文章 `setProperty('--scale', …)` 的三元素赋值完全一致，峰值随光标在图标内移动从左邻居连续交接给右邻居。WPF 无 flex 布局，改用各图标额外宽度 `W×(scale-rest)` 的左右累积和做精确平铺让位，中心不漂移、无重叠无空隙；用逐帧 `+= (target-current)×0.32` 平滑插值替代文章 CSS `transition`，移除弹簧速度字段 `ScaleVel`。放大倍率 1.6、峰值上浮按超出静止尺寸的比例计算（R131）。
+
 ---
 
 ## 11. 版本变更记录
+
+### 4.5.3（2026-11-20）
+
+- 底部 Dock 按腾讯云示例的三图标算法重建：光标在悬停图标内的横向位置决定左右邻居放大量，峰值连续交接，逐帧平滑过渡（R131）。
+- 单文件与安装包重新封装，版本号统一为 4.5.3。
 
 ### 4.5.2（2026-11-20）
 
