@@ -19,9 +19,9 @@
 | 软件名称 | 怪叔叔看图 |
 | 产品常量 | `AppInfo.Name = "怪叔叔看图"` |
 | 程序集名 | `怪叔叔看图`（安装器：`怪叔叔看图安装程序`）|
-| 当前版本 | `4.5.0` |
+| 当前版本 | `4.5.1` |
 | 仓库 | `https://github.com/yysdgss/guaishushu-image-viewer` |
-| Release | `v4.5.0` 已发布（上一版 `v4.4.0`）：https://github.com/yysdgss/guaishushu-image-viewer/releases/tag/v4.5.0 |
+| Release | `v4.5.1` 已发布（上一版 `v4.5.0`）：https://github.com/yysdgss/guaishushu-image-viewer/releases/tag/v4.5.1 |
 | 许可 | MIT |
 | 目标框架 | `net10.0-windows10.0.19041.0`（PDF 渲染需要 Windows 10 19041 SDK API） |
 | UI 框架 | WPF |
@@ -175,7 +175,8 @@ public static string SettingsPath => Path.Combine(SettingsDirectory, "settings.j
 | `.github/ISSUE_TEMPLATE/` | GitHub Issue 模板 |
 | `DEVELOPMENT.md` | 本开发档案 |
 | `README.md` | 用户说明 |
-| `LICENSE` | MIT 许可 |
+| `LICENSE` | MIT 许可（英文原文） |
+| `LICENSE.zh-CN.txt` | 安装程序展示用中文 MIT 许可 |
 | `DONATE.md` | 打赏说明 |
 | `.workbuddy/memory/` | WorkBuddy 会话级开发日志 |
 
@@ -3622,9 +3623,18 @@ RedrawAnnotations();
 - **需求**：底部悬停触发条位于展开后的 Dock 容器之上，横向划过时原事件没有继续更新指针坐标，放大目标可能停在上一次位置；同时排查用的磁盘日志不能进入交付版本。
 - **实现**：`FilmstripBarHit` 与 `FilmstripHost` 的 MouseMove 统一走 `UpdateFilmPointer`，把指针位置换算到 `FilmstripPanel` 坐标系；保留逐帧懒计算稳定中心与余弦衰减/弹簧平铺算法；删除 `C:/wb_dock_debug.log` 诊断写入。重新编译主程序与安装器均 0 警告、0 错误，单文件与安装包均已生成（R126）。
 
+### R127 安装界面许可协议中文化
+
+- **需求**：安装向导的许可协议正文仍为英文，与全中文软件定位不符。
+- **实现**：新增 `LICENSE.zh-CN.txt` 中文 MIT 许可文本；安装器改为内嵌该中文文本（资源逻辑名仍为 `LICENSE.txt`），许可显示框字体由 Consolas 改为 Microsoft YaHei UI，保证中文显示清晰；仓库根目录保留英文原文用于通用许可声明。重新封装 v4.5.1 单文件与安装包，并在安装包二进制中确认中文声明存在、英文正文已不存在（R127）。
+
 ---
 
 ## 11. 版本变更记录
+
+### 4.5.1（2026-11-20）
+
+- 安装向导许可协议改为中文 MIT 文本，许可框改用微软雅黑显示（R127）。
 
 ### 4.5.0（2026-11-19，2026-11-20 收尾）
 

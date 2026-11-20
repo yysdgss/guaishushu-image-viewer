@@ -276,7 +276,7 @@ internal sealed class InstallWizard : Form
         AddHint(_pages[1], "请仔细阅读以下许可协议。只有勾选接受后才能继续安装。", 52);
         _licenseBox.Location = new Point(24, 80);
         _licenseBox.Size = new Size(478, 206);
-        _licenseBox.Font = new Font("Consolas", 9F);
+        _licenseBox.Font = new Font("Microsoft YaHei UI", 9F);
         _licenseBox.Text = ReadLicense();
         _accept.Location = new Point(24, 298);
         _accept.AutoSize = true;
